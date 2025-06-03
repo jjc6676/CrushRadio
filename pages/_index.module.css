@@ -1,0 +1,557 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--spacing-4);
+  min-height: 100%;
+  padding-bottom: calc(var(--spacing-4) + 120px); /* Extra space for controls */
+}
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 500px;
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-3);
+  background-color: var(--card);
+  backdrop-filter: var(--backdrop-blur);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.apiStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  cursor: pointer;
+  padding: var(--spacing-1);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--animation-duration-fast);
+}
+
+.apiStatus:hover {
+  background-color: var(--muted);
+}
+
+.statusIcon {
+  display: flex;
+  align-items: center;
+}
+
+.statusText {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.warningBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background-color: var(--warning);
+  color: var(--warning-foreground);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.retryButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--error);
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.modeSelector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-8);
+}
+
+.refreshButton {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: 0.875rem;
+}
+
+.playerInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: var(--spacing-8);
+}
+
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+}
+
+.trackImageSkeleton {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--spacing-4);
+}
+
+.trackDetailsSkeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  gap: var(--spacing-2);
+}
+
+.titleSkeleton {
+  width: 80%;
+  height: 1.5rem;
+  border-radius: var(--radius);
+}
+
+.artistSkeleton {
+  width: 60%;
+  height: 1rem;
+  border-radius: var(--radius);
+}
+
+.tagSkeleton {
+  width: 40%;
+  height: 1.5rem;
+  border-radius: var(--radius-full);
+}
+
+.errorState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  text-align: center;
+  padding: var(--spacing-8);
+}
+
+.errorState h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--error);
+  margin: 0;
+}
+
+.errorState p {
+  color: var(--muted-foreground);
+  margin: 0;
+  max-width: 400px;
+}
+
+.nowPlaying {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+}
+
+.trackImage {
+  width: 100%;
+  aspect-ratio: 16/9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--shadow-lg);
+  margin-bottom: var(--spacing-4);
+}
+
+.trackImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.playingIndicator {
+  position: absolute;
+  top: var(--spacing-3);
+  right: var(--spacing-3);
+  background-color: color-mix(in srgb, var(--primary) 90%, transparent);
+  color: var(--primary-foreground);
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  box-shadow: var(--shadow);
+}
+
+.trackDetails {
+  text-align: center;
+  width: 100%;
+}
+
+.trackDetails h2 {
+  font-family: var(--font-family-heading);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 var(--spacing-2) 0;
+}
+
+.trackDetails p {
+  font-size: 1rem;
+  color: var(--muted-foreground);
+  margin: 0 0 var(--spacing-4) 0;
+}
+
+.genreTag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  background-color: var(--genre-tag-background);
+  color: var(--genre-tag-foreground);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin-bottom: var(--spacing-2);
+}
+
+.changeGenreButton {
+  height: auto;
+  padding: var(--spacing-1) var(--spacing-2);
+  font-size: 0.75rem;
+  border-radius: var(--radius);
+  background-color: color-mix(in srgb, var(--genre-tag-foreground) 20%, transparent);
+  color: var(--genre-tag-foreground);
+}
+
+.changeGenreButton:hover {
+  background-color: color-mix(in srgb, var(--genre-tag-foreground) 30%, transparent);
+}
+
+.liveTag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  background-color: color-mix(in srgb, var(--error) 20%, transparent);
+  color: var(--error);
+  padding: var(--spacing-1) var(--spacing-3);
+  border-radius: var(--radius-full);
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-2);
+}
+
+.liveDot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--error);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.sourceInfo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+  font-size: 0.875rem;
+}
+
+.sourceLabel {
+  color: var(--muted-foreground);
+}
+
+.sourceValue {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-weight: 500;
+}
+
+.noTrack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  color: var(--muted-foreground);
+}
+
+.genreGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-4);
+}
+
+.genreButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  height: auto;
+  padding: var(--spacing-4) var(--spacing-2);
+}
+
+.genreIcon {
+  font-size: 1.5rem;
+  margin-bottom: var(--spacing-1);
+}
+
+.apiStatusDetails {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-4);
+}
+
+.statusItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.statusItem:last-child {
+  border-bottom: none;
+}
+
+.statusLabel {
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+
+.statusValue {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font-weight: 600;
+}
+
+.upcomingQueue {
+  width: 100%;
+  max-width: 500px;
+  margin: var(--spacing-4) 0 var(--spacing-8) 0;
+  padding: var(--spacing-4);
+  background-color: var(--card);
+  backdrop-filter: var(--backdrop-blur);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.queueTitle {
+  font-family: var(--font-family-heading);
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 var(--spacing-3) 0;
+  color: var(--foreground);
+  text-align: center;
+}
+
+.queueList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.queueItem {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2);
+  border-radius: var(--radius);
+  background-color: color-mix(in srgb, var(--muted) 30%, transparent);
+  transition: background-color var(--animation-duration-fast);
+}
+
+.queueItem:hover {
+  background-color: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+
+.queueItemImage {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.queueItemImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.queueItemDetails {
+  flex: 1;
+  min-width: 0;
+}
+
+.queueItemTitle {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: var(--spacing-1);
+}
+
+.queueItemArtist {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queueItemNumber {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.musicControls {
+  margin-top: var(--spacing-4);
+  position: sticky;
+  bottom: var(--spacing-4);
+  z-index: var(--z-nav);
+}
+
+
+
+@media (max-width: 768px) {
+  .container {
+    padding: var(--spacing-2);
+    padding-bottom: calc(var(--spacing-2) + 140px); /* More space for mobile controls */
+    justify-content: flex-start;
+    min-height: auto;
+  }
+  
+  .statusBar {
+    margin-bottom: var(--spacing-2);
+  }
+  
+  .modeSelector {
+    margin-bottom: var(--spacing-3);
+  }
+  
+  .refreshButton {
+    font-size: 0.8rem;
+  }
+  
+  .playerInfo {
+    margin-bottom: var(--spacing-3);
+  }
+
+  .upcomingQueue {
+    margin: var(--spacing-3) 0 var(--spacing-6) 0;
+    padding: var(--spacing-3);
+  }
+
+  .queueTitle {
+    font-size: 0.875rem;
+  }
+
+  .queueItem {
+    gap: var(--spacing-2);
+    padding: var(--spacing-2);
+  }
+
+  .queueItemImage {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .queueItemTitle {
+    font-size: 0.8rem;
+  }
+
+  .queueItemArtist {
+    font-size: 0.7rem;
+  }
+
+  .queueItemNumber {
+    width: 1.25rem;
+    height: 1.25rem;
+    font-size: 0.7rem;
+  }
+  
+  .trackDetails h2 {
+    font-size: 1.25rem;
+  }
+  
+  .genreGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .statusBar {
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+  
+  .apiStatus {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .musicControls {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    margin: 0;
+    padding: var(--spacing-3);
+    background-color: var(--background);
+    border-top: 1px solid var(--border);
+    backdrop-filter: var(--backdrop-blur);
+  }
+}

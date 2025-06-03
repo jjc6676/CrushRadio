@@ -1,0 +1,167 @@
+
+@import url(https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap);
+@import url(https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap);
+@import url(https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap);
+@import url(https://fonts.googleapis.com/css2?family=Caveat:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap);
+:root {
+  /* Content layers */
+  --z-content-low: 10; /* Minor elevated content */
+  --z-content: 20; /* Standard elevated content */
+  --z-content-high: 30; /* Important content that needs prominence */
+
+  /* Navigation layers */
+  --z-nav-low: 100; /* Secondary navigation components */
+  --z-nav: 200; /* Primary navigation bars */
+  --z-nav-sticky: 300; /* Sticky navigation elements */
+
+  /* Overlay layers */
+  --z-overlay: 400;
+
+  --z-spotlight: 1000; /* Tutorial spotlights/guided help */
+
+  /* System layers */
+  --z-critical: 2000; /* Critical system notifications */
+
+  /* spacing */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+}
+
+:root {
+  /* Dark mode colors as default */
+  --background: hsl(240, 10%, 10%);
+  --foreground: hsl(0, 0%, 98%);
+
+  --surface: hsl(240, 10%, 13%);
+  --surface-foreground: hsl(0, 0%, 95%);
+  --sidebar: hsl(240, 12%, 8%);
+  --sidebar-foreground: hsl(0, 0%, 90%);
+  --card: hsla(240, 10%, 15%, 0.8);
+  --card-foreground: hsl(0, 0%, 98%);
+  --popup: hsl(240, 10%, 20%);
+  --popup-foreground: hsl(0, 0%, 98%);
+  --primary: hsl(325, 90%, 66%);
+  --primary-foreground: hsl(0, 0%, 10%);
+  --secondary: hsl(180, 70%, 55%);
+  --secondary-foreground: hsl(0, 0%, 10%);
+  --accent: hsl(270, 80%, 60%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 5%, 25%);
+  --muted-foreground: hsl(0, 0%, 75%);
+  --success: hsl(145, 80%, 42%);
+  --success-foreground: hsl(0, 0%, 10%);
+  --error: hsl(0, 90%, 60%);
+  --error-foreground: hsl(0, 0%, 98%);
+  --warning: hsl(40, 90%, 60%);
+  --warning-foreground: hsl(0, 0%, 10%);
+  --info: hsl(210, 90%, 60%);
+  --info-foreground: hsl(0, 0%, 98%);
+  --info-hover: hsl(210, 90%, 65%);
+  --info-active: hsl(210, 90%, 55%);
+
+  /* Music-specific colors */
+  --equalizer-bar: hsl(325, 90%, 66%);
+  --equalizer-background: hsla(240, 10%, 15%, 0.5);
+  --wave-primary: hsl(325, 90%, 66%);
+  --wave-secondary: hsl(270, 80%, 60%);
+  --volume-track: hsl(240, 5%, 25%);
+  --volume-thumb: hsl(325, 90%, 66%);
+  --genre-tag-background: hsla(270, 80%, 60%, 0.2);
+  --genre-tag-foreground: hsl(270, 80%, 85%);
+  --player-progress: hsl(325, 90%, 66%);
+  --player-progress-background: hsla(240, 5%, 25%, 0.5);
+
+  --border: hsl(240, 5%, 26%);
+
+  /* Font Families */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-heading: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-monospace: 'Roboto Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --font-family-cursive: 'Caveat', cursive;
+
+  /* Border Radius and box shadows */
+  --shadow: 0 2px 10px hsla(240, 30%, 5%, 0.2), 0 1px 3px hsla(240, 30%, 5%, 0.1);
+  --shadow-md: 0 4px 20px hsla(240, 30%, 5%, 0.3), 0 2px 6px hsla(240, 30%, 5%, 0.2);
+  --shadow-lg: 0 10px 30px hsla(240, 30%, 5%, 0.4), 0 5px 15px hsla(240, 30%, 5%, 0.3);
+  --shadow-focus: 0 0 0 3px hsla(325, 90%, 66%, 0.3);
+
+  --radius-sm: 4px;
+  --radius: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px; 
+
+  /* Animation */
+  --animation-duration-fast: 150ms;
+  --animation-duration-normal: 300ms;
+  --animation-duration-slow: 500ms;
+
+  /* Chart colors */
+  --chart-color-1: hsl(325, 90%, 66%);
+  --chart-color-2: hsl(270, 80%, 60%);
+  --chart-color-3: hsl(180, 70%, 55%);
+  --chart-color-4: hsl(145, 80%, 42%);
+  --chart-color-5: hsl(40, 90%, 60%);
+
+  /* Music genre colors */
+  --genre-pop: hsl(325, 90%, 66%);
+  --genre-rock: hsl(0, 70%, 60%);
+  --genre-electronic: hsl(180, 70%, 55%);
+  --genre-hiphop: hsl(270, 80%, 60%);
+  --genre-jazz: hsl(40, 90%, 60%);
+  --genre-classical: hsl(210, 90%, 60%);
+
+  /* Special effects */
+  --glow-effect: 0 0 15px hsla(325, 90%, 66%, 0.5);
+  --gradient-background: linear-gradient(135deg, hsla(240, 15%, 12%, 0.95), hsla(260, 15%, 8%, 0.95));
+  --gradient-accent: linear-gradient(135deg, hsl(325, 90%, 66%), hsl(270, 80%, 60%));
+  --backdrop-blur: blur(10px);
+}
+
+.dark {
+  /* Already in dark mode by default */
+}
+@layer base {
+  ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-family-base);
+  }
+
+  * {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+
+
+  button {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  th, td {
+    display: table-cell!important;
+  }
+}
