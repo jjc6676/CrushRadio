@@ -1,0 +1,3 @@
+-- (continued)
+-- All tables for CrushRadio schema are now defined.
+-- You can run this file in psql or a GUI (like DBeaver, TablePlus, or pgAdmin) to set up your local database.

@@ -1,0 +1,32 @@
+{
+  "name": "crushradio",
+  "version": "1.0.0",
+  "description": "🎵 Crush Radio - Dynamic YouTube Music Platform 📋 Project Overview Crush Radio is a modern, web-based music streaming platform that provides continuous, high-quality music playback through YouTube's vast music library. Built for crushradio.com, it offers both random music discovery and genre-specific playlists with an immersive, radio-like experience.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jjc6676/CrushRadio.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jjc6676/CrushRadio/issues"
+  },
+  "homepage": "https://github.com/jjc6676/CrushRadio#readme",
+  "dependencies": {
+    "@types/react-youtube": "^7.10.0",
+    "framer-motion": "^12.15.0",
+    "kysely": "^0.26.3",
+    "kysely-postgres-js": "^2.0.0",
+    "motion-dom": "^12.15.0",
+    "postgres": "^3.4.7",
+    "react-youtube": "^10.1.0"
+  }
+}
