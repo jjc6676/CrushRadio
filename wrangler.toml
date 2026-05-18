@@ -6,12 +6,12 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "crushradio"
-database_id = "FILL_AFTER_CREATE"
+database_id = "79298aca-8a27-4575-947c-2f6c322d8a29"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "FILL_AFTER_CREATE"
-preview_id = "FILL_AFTER_CREATE"
+id = "a0a85a30bb8e44069b53704d887e0e30"
+preview_id = "7a73730a616a48d4b5a587fb5202fb59"
 
 [[r2_buckets]]
 binding = "AUDIO"
