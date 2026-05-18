@@ -1,0 +1,27 @@
+name = "crushradio"
+main = "workers/main/index.js"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "crushradio"
+database_id = "FILL_AFTER_CREATE"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "FILL_AFTER_CREATE"
+preview_id = "FILL_AFTER_CREATE"
+
+[[r2_buckets]]
+binding = "AUDIO"
+bucket_name = "crushradio-audio"
+
+[durable_objects]
+bindings = [
+  { name = "ROTATOR", class_name = "Rotator" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["Rotator"]
