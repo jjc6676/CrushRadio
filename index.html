@@ -50,34 +50,6 @@
     pointer-events:none;z-index:99;opacity:0.5;
   }
 
-  /* Marquee ticker */
-  .ticker{
-    position:relative;z-index:5;
-    background:var(--red);color:#0a0a0a;
-    border-bottom:1px solid #0a0a0a;
-    overflow:hidden;
-    font-family:'Archivo Black',sans-serif;
-    letter-spacing:0.04em;
-    font-size:14px;
-    text-transform:uppercase;
-    height:38px;
-    display:flex;align-items:center;
-  }
-  .ticker-track{
-    display:flex;gap:48px;white-space:nowrap;
-    animation:ticker 28s linear infinite;
-    padding-left:48px;
-  }
-  .ticker span{display:inline-flex;align-items:center;gap:18px}
-  .ticker .dot{
-    width:8px;height:8px;background:#0a0a0a;border-radius:50%;
-    display:inline-block;
-  }
-  @keyframes ticker{
-    from{transform:translateX(0)}
-    to{transform:translateX(-50%)}
-  }
-
   /* Top bar */
   .topbar{
     position:relative;z-index:5;
@@ -155,7 +127,7 @@
   .hero{
     position:relative;z-index:4;
     padding:clamp(40px,8vw,96px) var(--gutter) clamp(60px,10vw,120px);
-    min-height:calc(100vh - 38px - 68px);
+    min-height:calc(100vh - 68px);
     display:grid;
     grid-template-columns:1.2fr 1fr;
     gap:clamp(28px,5vw,64px);
@@ -379,23 +351,6 @@
 </style>
 </head>
 <body>
-
-<div class="ticker" aria-hidden="true">
-  <div class="ticker-track">
-    <span>Upload Your Sound <i class="dot"></i></span>
-    <span>Original Tracks Only <i class="dot"></i></span>
-    <span>Vote Out Loud <i class="dot"></i></span>
-    <span>Open Source Radio <i class="dot"></i></span>
-    <span>Tap Crushed It <i class="dot"></i></span>
-    <span>Tuning In Soon <i class="dot"></i></span>
-    <span>Upload Your Sound <i class="dot"></i></span>
-    <span>Original Tracks Only <i class="dot"></i></span>
-    <span>Vote Out Loud <i class="dot"></i></span>
-    <span>Open Source Radio <i class="dot"></i></span>
-    <span>Tap Crushed It <i class="dot"></i></span>
-    <span>Tuning In Soon <i class="dot"></i></span>
-  </div>
-</div>
 
 <header class="topbar">
   <a class="brand" href="/" style="text-decoration:none"><span class="mark"></span>Crush Radio</a>
