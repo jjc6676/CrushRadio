@@ -121,7 +121,7 @@
     color:transparent;
     -webkit-text-stroke:2px var(--ink);
     display:block;
-    margin-top:-0.04em;
+    margin-top:0.06em;
   }
   .wordmark .slash{
     color:var(--red);
@@ -137,17 +137,46 @@
   }
   .sub b{color:var(--red);font-weight:700}
 
-  /* Live feed sections (injected by worker at /) */
-  .feed-eyebrow{
-    padding:0 var(--gutter);
-    color:var(--ink-dim);
-    font-size:12px;letter-spacing:0.22em;text-transform:uppercase;
-    display:flex;align-items:center;gap:14px;
-    margin-bottom:clamp(20px,3vw,32px);
+  /* Intro between hero and feed — built-in-public framing + CTAs */
+  .code-intro{
+    position:relative;z-index:4;
+    padding:0 var(--gutter) clamp(40px,6vw,64px);
+    max-width:none;
   }
-  .feed-eyebrow::before{
-    content:"";width:36px;height:1px;background:var(--ink-dim);
+  .code-intro .eyebrow{margin-bottom:clamp(16px,2vw,24px)}
+  .code-intro .lead{
+    max-width:72ch;
+    color:var(--ink);
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(15px,1.4vw,18px);
+    line-height:1.6;
   }
+  .code-intro .lead b{color:var(--red);font-weight:700}
+  .code-intro .ctas{
+    margin-top:clamp(20px,3vw,28px);
+    display:flex;flex-wrap:wrap;gap:14px;
+  }
+  .btn-red{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:14px 22px;
+    background:var(--red);color:#0a0a0a;text-decoration:none;
+    font-family:'Archivo Black',sans-serif;
+    font-size:13px;letter-spacing:0.14em;text-transform:uppercase;
+    transition:background .15s,transform .05s;
+  }
+  .btn-red:hover{background:#ff3838}
+  .btn-red:active{transform:translateY(1px)}
+  .btn-red svg{width:16px;height:16px;fill:currentColor}
+  .btn-ghost{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:13px 22px;
+    border:1px solid var(--rule);
+    color:var(--ink);text-decoration:none;
+    font-family:'Archivo Black',sans-serif;
+    font-size:13px;letter-spacing:0.14em;text-transform:uppercase;
+    transition:border-color .15s,background .15s;
+  }
+  .btn-ghost:hover{border-color:var(--red);background:rgba(239,43,43,0.06)}
   .stats{
     display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
     gap:1px;background:var(--rule);border:1px solid var(--rule);
@@ -261,7 +290,21 @@
   </p>
 </main>
 
-<div class="feed-eyebrow">Live // Built in the open</div>
+<section class="code-intro">
+  <div class="eyebrow">The Code // Built in the open</div>
+  <p class="lead">
+    Crush Radio is <b>built in public on GitHub</b>. An open-source community radio station.
+    Every change is a pull request. Every decision is in an issue or a commit message. No closed doors.
+  </p>
+  <div class="ctas">
+    <a class="btn-red" href="https://github.com/jjc6676/crushradio" rel="noopener">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      Open the repo
+    </a>
+    <a class="btn-ghost" href="https://github.com/jjc6676/crushradio/issues/new" rel="noopener">File an issue →</a>
+  </div>
+</section>
+
 <!--FEED-->
 
 <div class="signal" aria-hidden="true"><div class="signal-line"></div></div>

@@ -2,65 +2,89 @@
 
 **An open-source community radio station. Artists upload originals. Everyone tunes in to the same live broadcast. Listeners tap CRUSHED IT on the tracks worth keeping — silence retires the rest.**
 
-Live coming-soon page: [crushradio.com](https://crushradio.com) · See live activity: [crushradio.com/code](https://crushradio.com/code)
+Live at [crushradio.com](https://crushradio.com).
 
 > Built by the people who'd actually listen. Voted on by the people actually listening.
 
 ## What this is
 
-Crush Radio is a community-built radio station. The full design is in [docs/specs/2026-05-17-crush-radio-design.md](docs/specs/2026-05-17-crush-radio-design.md).
+Crush Radio is a community-built radio station designed around three rules:
 
-**v0 — shipped:** a coming-soon page that captures signups (name, email, role, what they'd upload/listen to/build).
+1. **One shared broadcast** — every listener hears the same track at the same moment. No personalized streams. Tuning in means tuning in *with* people.
+2. **Positive-only voting** — there is no skip button. Listeners tap CRUSHED IT on what they love; silence retires the rest. Tracks that earn love stay in rotation; tracks that don't drop out.
+3. **Built in public** — no labels, no algorithm, no closed doors. Every change is a pull request. Every decision is in an issue or a commit message.
 
-**v1 — building:** the full platform.
-- Upload page (drag-drop original audio, click-through attestation, R2 storage)
-- Listener page (one big TUNE IN button, shared live "broadcast", one giant CRUSHED IT vote button)
-- Rotator Durable Object (the synced-jukebox conductor — every listener hears the same track at the same moment)
-- Survival algorithm (5-play trial → ≥60% crushed-it ratio rotates, 30–60% backgrounds, <30% retires)
-- Artist profile page
-- DMCA takedown form
-- Donation jar (Stripe Checkout)
+Full design lives in [docs/specs/2026-05-17-crush-radio-design.md](docs/specs/2026-05-17-crush-radio-design.md).
 
-**Deferred (v2+):** accounts/OAuth, tip jar, live chat, scheduled shows, federation, mobile app.
+## Status
+
+**Plan 1 — shipped:** Cloudflare infrastructure (D1, KV, R2, Durable Object) wired up, Rotator DO live with synced-jukebox WebSocket broadcast, home page deployed to crushradio.com with live GitHub feed.
+
+**Plan 2 — next:** Upload page (drag-drop original audio + R2 write), vote API (`/api/vote`), flag API, DMCA takedown form.
+
+**Plan 3 — after that:** Listener page (the actual TUNE IN experience, CRUSHED IT button wired to the API), artist profile pages.
+
+**Plan 4 — polish:** Donation jar (Stripe Checkout), CONTRIBUTING.md, production deploy hardening.
+
+**Deferred (v2+):** listener accounts/OAuth, artist tip jar, live chat, scheduled shows, federation, mobile app.
 
 ## Stack
 
-- **Cloudflare Workers** — page serving, API endpoints
-- **R2** — audio storage (free egress to CDN means one upload serves thousands of listeners)
-- **D1** — tracks, artists, plays, votes, flags
-- **KV** — rate limits, vote dedup, now-playing pointer
-- **Durable Object** — the Rotator (single conductor coordinating shared playback)
+- **Cloudflare Workers** — page serving + API endpoints (one Worker, one file at `workers/main/index.js`)
+- **Durable Object** — the Rotator, the single conductor coordinating shared playback. Maintains current track state, accepts hibernatable WebSocket connections from every listener, and uses DO Alarms to advance tracks
+- **R2** — audio storage. Egress to Cloudflare CDN is free, so 1,000 listeners playing the same track ≈ 1 R2 read
+- **D1** — tracks, artists, plays, votes, flags (SQLite)
+- **KV** — vote dedup by fingerprint, rate limit counters
 
-Estimated v1 cost at a few thousand DAU: $5–15/month. Donation jar covers it.
-
-## Contributing
-
-Right now the repo is just the coming-soon page + the v1 design doc. The build is starting.
-
-Want to help? **Open a PR** with anything: a typo fix, a CSS tweak, an algorithm improvement to the survival logic in the spec, a mockup for the listener page. No bar to entry.
-
-- **Issues** are open for anything — bugs, feature ideas, "what about X."
-- **Code style** — TBD. Pragmatic ES modules, no transpiler, no framework on the listener side. The Worker is one file.
-- **License** — MIT. Use it, fork it, run your own version.
-
-Discussion happens on issues and PRs in this repo until we outgrow it.
+Estimated cost at a few thousand DAU: **$5–15/month**. Donation jar covers it.
 
 ## Repo layout
 
 ```
 crushradio/
-├── README.md
-├── LICENSE
-├── index.html          — the live coming-soon page (also embedded in the Worker)
-├── worker.js           — the Cloudflare Worker template (HTML inlined at deploy time)
-├── docs/specs/         — design docs
-└── (more to come)
+├── index.html              — the static home page shell (hero + feed marker)
+├── workers/main/index.js   — main Worker: routing, GitHub feed render
+├── rotator/
+│   ├── index.js            — Rotator Durable Object (WebSocket + alarm)
+│   └── queue.js            — cool-down + priority queue logic
+├── infra/
+│   ├── schema.sql          — D1 schema (artists, tracks, plays, votes, flags)
+│   └── seed.sql            — 3 test tracks for local dev
+├── scripts/build.mjs       — inlines index.html into workers/main/index.built.js
+├── wrangler.toml           — Cloudflare bindings + custom domains
+└── docs/                   — specs, plans, design history
+```
+
+## Local development
+
+```bash
+npm install
+npm run db:schema:local    # apply schema to local D1
+npm run db:seed:local      # seed 3 test tracks
+npm run dev                # wrangler dev on http://localhost:8787
+```
+
+Then in a second terminal:
+
+```bash
+curl http://localhost:8787/api/status         # now-playing JSON
+npx wscat -c ws://localhost:8787/ws           # WebSocket — receives broadcasts
 ```
 
 ## Deploy
 
-The page is served from a single Cloudflare Worker named `crushradio-site` on the apex + www. The build step inlines `index.html` into `worker.js` and PUTs the module to the Workers API. Deploy scripts are coming once the repo settles.
+```bash
+npm run deploy             # builds + ships to Cloudflare
+```
 
-## Status
+The Worker is named `crushradio` and serves both `crushradio.com` and `www.crushradio.com` via custom-domain routes declared in `wrangler.toml`. Requires the Cloudflare Workers Paid plan ($5/mo) because Durable Objects.
 
-Not on air yet. Tune in soon.
+## Contributing
+
+The build is just starting. Open a PR with anything — typo fix, CSS tweak, algorithm idea, mockup, bug report. No bar to entry.
+
+- **Issues** are open for anything — bugs, feature requests, "what about X."
+- **Code style** is pragmatic ES modules. No transpiler, no framework on the listener side. The Worker is one file. Keep it that way unless there's a real reason not to.
+- **License:** MIT. Use it, fork it, run your own station.
+
+Discussion happens on issues and PRs until we outgrow it.
