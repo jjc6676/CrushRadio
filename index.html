@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crush Radio — open-source community radio</title>
+<meta name="description" content="An open-source community station. Artists upload originals. Everyone tunes in to the same broadcast. Listeners vote 'crushed it' or 'next' — votes decide what survives.">
+<meta name="theme-color" content="#0a0a0a">
+<meta property="og:title" content="Crush Radio — open-source community radio">
+<meta property="og:description" content="Built by the people who'd actually listen. Voted on by the people actually listening.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://crushradio.com">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo+Black&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0a;
+    --bg-2:#141414;
+    --ink:#f3ece0;
+    --ink-dim:#8a8278;
+    --red:#ef2b2b;
+    --red-deep:#b81818;
+    --rule:#222;
+    --gutter:clamp(20px,4vw,56px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{
+    font-family:'JetBrains Mono',ui-monospace,monospace;
+    font-size:14px;
+    line-height:1.5;
+    overflow-x:hidden;
+    background:
+      radial-gradient(ellipse 80% 60% at 70% 30%, rgba(239,43,43,0.10), transparent 70%),
+      radial-gradient(ellipse 60% 50% at 10% 90%, rgba(239,43,43,0.06), transparent 70%),
+      var(--bg);
+  }
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px);
+    pointer-events:none;z-index:100;mix-blend-mode:overlay;
+  }
+  body::after{
+    content:"";
+    position:fixed;inset:-50%;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.07 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    pointer-events:none;z-index:99;opacity:0.5;
+  }
+
+  /* Marquee ticker */
+  .ticker{
+    position:relative;z-index:5;
+    background:var(--red);color:#0a0a0a;
+    border-bottom:1px solid #0a0a0a;
+    overflow:hidden;
+    font-family:'Archivo Black',sans-serif;
+    letter-spacing:0.04em;
+    font-size:14px;
+    text-transform:uppercase;
+    height:38px;
+    display:flex;align-items:center;
+  }
+  .ticker-track{
+    display:flex;gap:48px;white-space:nowrap;
+    animation:ticker 28s linear infinite;
+    padding-left:48px;
+  }
+  .ticker span{display:inline-flex;align-items:center;gap:18px}
+  .ticker .dot{
+    width:8px;height:8px;background:#0a0a0a;border-radius:50%;
+    display:inline-block;
+  }
+  @keyframes ticker{
+    from{transform:translateX(0)}
+    to{transform:translateX(-50%)}
+  }
+
+  /* Top bar */
+  .topbar{
+    position:relative;z-index:5;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:22px var(--gutter);
+    border-bottom:1px solid var(--rule);
+  }
+  .brand{
+    font-family:'Archivo Black',sans-serif;
+    font-size:18px;letter-spacing:0.08em;text-transform:uppercase;
+    color:var(--ink);
+    display:inline-flex;align-items:center;gap:10px;
+  }
+  .brand .mark{
+    width:14px;height:14px;background:var(--red);border-radius:50%;
+    box-shadow:0 0 0 3px rgba(239,43,43,0.18);
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{box-shadow:0 0 0 3px rgba(239,43,43,0.18);transform:scale(1)}
+    50%{box-shadow:0 0 0 8px rgba(239,43,43,0.04);transform:scale(0.92)}
+  }
+  .status{
+    color:var(--ink-dim);
+    font-size:12px;letter-spacing:0.14em;text-transform:uppercase;
+    display:inline-flex;align-items:center;gap:10px;
+  }
+  .status .live{
+    color:var(--red);font-family:'Archivo Black',sans-serif;
+  }
+  .nav-links{display:flex;align-items:center;gap:24px}
+  .nav-links a.nlink{
+    color:var(--ink-dim);text-decoration:none;
+    font-size:12px;letter-spacing:0.18em;text-transform:uppercase;
+    font-family:'JetBrains Mono',monospace;
+    transition:color .15s;
+  }
+  .nav-links a.nlink:hover{color:var(--red)}
+  .nav-links a.nlink.active{color:var(--red)}
+  .nav-repo{
+    display:inline-flex;align-items:center;gap:8px;
+    padding:8px 14px;
+    border:1px solid var(--rule);
+    color:var(--ink);text-decoration:none;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
+    transition:border-color .15s,background .15s;
+  }
+  .nav-repo:hover{border-color:var(--red);background:rgba(239,43,43,0.06)}
+  .nav-repo svg{width:14px;height:14px;fill:currentColor}
+  .nav-right{display:flex;align-items:center;gap:18px}
+  @media (max-width:560px){
+    .nav-repo span{display:none}
+    .nav-repo{padding:8px}
+    .nav-links{gap:14px}
+    .status .text,.status{display:none}
+  }
+
+  /* Inline CTA after hero copy */
+  .hero-cta{
+    margin-top:clamp(20px,3vw,28px);
+    display:inline-flex;align-items:center;gap:10px;
+    color:var(--red);
+    font-family:'Archivo Black',sans-serif;
+    font-size:13px;letter-spacing:0.14em;text-transform:uppercase;
+    text-decoration:none;
+    padding-bottom:4px;
+    border-bottom:2px solid var(--red);
+    transition:gap .15s,opacity .15s;
+  }
+  .hero-cta:hover{gap:16px;opacity:0.85}
+  .hero-cta svg{width:16px;height:16px;fill:currentColor}
+
+  /* Hero */
+  .hero{
+    position:relative;z-index:4;
+    padding:clamp(40px,8vw,96px) var(--gutter) clamp(60px,10vw,120px);
+    min-height:calc(100vh - 38px - 68px);
+    display:grid;
+    grid-template-columns:1.2fr 1fr;
+    gap:clamp(28px,5vw,64px);
+    align-items:start;
+  }
+  @media (max-width:880px){
+    .hero{grid-template-columns:1fr;min-height:auto}
+  }
+
+  .eyebrow{
+    color:var(--ink-dim);
+    font-size:12px;letter-spacing:0.22em;text-transform:uppercase;
+    margin-bottom:clamp(20px,3vw,32px);
+    display:flex;align-items:center;gap:14px;
+  }
+  .eyebrow::before{
+    content:"";width:36px;height:1px;background:var(--ink-dim);
+  }
+
+  .wordmark{
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    line-height:0.82;
+    letter-spacing:-0.01em;
+    text-transform:uppercase;
+    font-size:clamp(82px,16vw,220px);
+  }
+  .wordmark .crush{
+    color:var(--red);
+    display:block;
+    text-shadow:6px 6px 0 #0a0a0a, 6px 6px 0 1px rgba(239,43,43,0.4);
+  }
+  .wordmark .radio{
+    color:transparent;
+    -webkit-text-stroke:2px var(--ink);
+    display:block;
+    margin-top:-0.04em;
+  }
+  .wordmark .slash{
+    color:var(--red);
+    -webkit-text-stroke:0;
+  }
+
+  .sub{
+    margin-top:clamp(24px,4vw,40px);
+    max-width:46ch;
+    color:var(--ink);
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(15px,1.4vw,18px);
+    line-height:1.6;
+  }
+  .sub b{color:var(--red);font-weight:700}
+  .sub + .sub{margin-top:16px;color:var(--ink-dim)}
+
+  /* Right column */
+  .panel{
+    display:flex;flex-direction:column;gap:24px;
+    padding-bottom:8px;
+  }
+
+  /* Form card */
+  .card{
+    border:1px solid var(--rule);
+    background:rgba(20,20,20,0.6);
+    padding:28px;
+    display:flex;flex-direction:column;gap:18px;
+  }
+  .card-head{
+    display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+    padding-bottom:14px;border-bottom:1px solid var(--rule);
+  }
+  .card-head .h{
+    font-family:'Anton',sans-serif;
+    font-size:32px;line-height:0.95;
+    text-transform:uppercase;letter-spacing:0.01em;
+    color:var(--ink);
+  }
+  .card-head .h em{font-style:normal;color:var(--red)}
+  .card-head .id{
+    color:var(--ink-dim);font-size:10px;letter-spacing:0.22em;text-transform:uppercase;
+    white-space:nowrap;
+  }
+
+  .form{display:flex;flex-direction:column;gap:14px}
+  .form label{
+    color:var(--ink-dim);
+    font-size:10px;letter-spacing:0.22em;text-transform:uppercase;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .form input,.form textarea,.form select{
+    width:100%;
+    background:#0a0a0a;
+    border:1px solid var(--rule);
+    color:var(--ink);
+    font-family:'JetBrains Mono',monospace;
+    font-size:14px;
+    padding:12px 14px;
+    line-height:1.4;
+    transition:border-color .15s;
+    -webkit-appearance:none;appearance:none;
+  }
+  .form select{
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8' fill='none'><path d='M1 1l5 5 5-5' stroke='%23ef2b2b' stroke-width='2'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 14px center;
+    background-size:12px;
+    padding-right:36px;cursor:pointer;
+  }
+  .form textarea{resize:vertical;min-height:88px}
+  .form input:focus,.form textarea:focus,.form select:focus{
+    outline:none;border-color:var(--red);
+  }
+  .form input::placeholder,.form textarea::placeholder{
+    color:#4a4640;
+  }
+  .form .submit{
+    margin-top:4px;
+    background:var(--red);
+    border:1px solid var(--red);
+    color:#0a0a0a;
+    font-family:'Archivo Black',sans-serif;
+    font-size:14px;letter-spacing:0.12em;text-transform:uppercase;
+    padding:14px 18px;
+    cursor:pointer;
+    transition:background .15s,transform .05s;
+  }
+  .form .submit:hover{background:#ff3838}
+  .form .submit:active{transform:translateY(1px)}
+  .form .submit[disabled]{opacity:0.6;cursor:wait}
+
+  .form-foot{
+    color:var(--ink-dim);
+    font-size:11px;line-height:1.5;
+    border-top:1px dashed var(--rule);padding-top:14px;
+  }
+
+  .toast{
+    display:none;
+    background:#0f1f0f;border:1px solid #2a5a2a;color:#9fe09f;
+    padding:14px 16px;font-size:12px;letter-spacing:0.05em;
+  }
+  .toast.show{display:block}
+  .toast.error{background:#1f0a0a;border-color:#5a2a2a;color:#e09f9f}
+
+  /* EQ visualization */
+  .eq{
+    display:flex;align-items:flex-end;gap:6px;
+    height:80px;
+    padding:14px 18px;
+    border:1px solid var(--rule);
+    background:rgba(20,20,20,0.6);
+  }
+  .eq span{
+    flex:1;
+    background:linear-gradient(to top, var(--red-deep), var(--red));
+    transform-origin:bottom;
+    animation:eqbar 1.1s ease-in-out infinite;
+    min-height:6px;
+  }
+  .eq span:nth-child(1){animation-delay:-0.4s;animation-duration:0.9s}
+  .eq span:nth-child(2){animation-delay:-0.7s;animation-duration:1.3s}
+  .eq span:nth-child(3){animation-delay:-1.1s;animation-duration:0.7s}
+  .eq span:nth-child(4){animation-delay:-0.2s;animation-duration:1.5s}
+  .eq span:nth-child(5){animation-delay:-0.9s;animation-duration:0.8s}
+  .eq span:nth-child(6){animation-delay:-0.5s;animation-duration:1.2s}
+  .eq span:nth-child(7){animation-delay:-1.3s;animation-duration:1.0s}
+  .eq span:nth-child(8){animation-delay:-0.3s;animation-duration:1.4s}
+  .eq span:nth-child(9){animation-delay:-1.0s;animation-duration:0.9s}
+  .eq span:nth-child(10){animation-delay:-0.6s;animation-duration:1.1s}
+  .eq span:nth-child(11){animation-delay:-0.1s;animation-duration:1.3s}
+  .eq span:nth-child(12){animation-delay:-1.2s;animation-duration:0.8s}
+  @keyframes eqbar{
+    0%,100%{transform:scaleY(0.18)}
+    50%{transform:scaleY(1)}
+  }
+
+  /* Footer */
+  .foot{
+    position:relative;z-index:5;
+    border-top:1px solid var(--rule);
+    padding:22px var(--gutter);
+    display:flex;align-items:center;justify-content:space-between;
+    color:var(--ink-dim);
+    font-size:11px;letter-spacing:0.18em;text-transform:uppercase;
+    gap:18px;flex-wrap:wrap;
+  }
+  .foot a{color:var(--ink);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s}
+  .foot a:hover{border-color:var(--red)}
+  .foot .social{display:flex;gap:22px;flex-wrap:wrap}
+
+  /* Big bottom signal line */
+  .signal{
+    position:relative;z-index:4;
+    padding:0 var(--gutter);
+    margin:0;
+  }
+  .signal-line{
+    height:2px;background:var(--rule);position:relative;overflow:hidden;
+  }
+  .signal-line::after{
+    content:"";position:absolute;inset:0;width:30%;
+    background:linear-gradient(90deg,transparent,var(--red),transparent);
+    animation:sweep 3.2s ease-in-out infinite;
+  }
+  @keyframes sweep{
+    0%{transform:translateX(-100%)}
+    100%{transform:translateX(400%)}
+  }
+
+  /* Mobile tweaks */
+  @media (max-width:560px){
+    .topbar{padding:18px var(--gutter)}
+    .brand{font-size:15px}
+    .status .text{display:none}
+    .wordmark{font-size:clamp(56px,20vw,128px)}
+    .card{padding:22px}
+    .card-head .h{font-size:26px}
+    .eq{height:64px}
+    .foot{font-size:10px;flex-direction:column;align-items:flex-start;gap:14px}
+  }
+</style>
+</head>
+<body>
+
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-track">
+    <span>Upload Your Sound <i class="dot"></i></span>
+    <span>Crush Radio <i class="dot"></i></span>
+    <span>Vote Out Loud <i class="dot"></i></span>
+    <span>Open Source Radio <i class="dot"></i></span>
+    <span>Crushed It Or Next <i class="dot"></i></span>
+    <span>Tuning In Soon <i class="dot"></i></span>
+    <span>Upload Your Sound <i class="dot"></i></span>
+    <span>Crush Radio <i class="dot"></i></span>
+    <span>Vote Out Loud <i class="dot"></i></span>
+    <span>Open Source Radio <i class="dot"></i></span>
+    <span>Crushed It Or Next <i class="dot"></i></span>
+    <span>Tuning In Soon <i class="dot"></i></span>
+  </div>
+</div>
+
+<header class="topbar">
+  <a class="brand" href="/" style="text-decoration:none"><span class="mark"></span>Crush Radio</a>
+  <div class="nav-links">
+    <a class="nlink active" href="/">Home</a>
+    <a class="nlink" href="/code">Code</a>
+    <a class="nav-repo" href="https://github.com/jjc6676/crushradio" rel="noopener" aria-label="View the repo on GitHub">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>Repo</span>
+    </a>
+  </div>
+</header>
+
+<main class="hero">
+  <div>
+    <div class="eyebrow">Transmission // Pre-launch</div>
+    <h1 class="wordmark">
+      <span class="crush">Crush</span>
+      <span class="radio">Rad<span class="slash">i</span>o</span>
+    </h1>
+    <p class="sub">
+      An open-source community station. <b>Artists upload originals.</b>
+      Everyone tunes in to the same live broadcast. Listeners tap
+      <b>CRUSHED IT</b> or <b>NEXT</b> on every track — votes decide what survives.
+    </p>
+    <p class="sub">
+      No labels. No algorithm. No corporate playlist. Built in the open on
+      GitHub, funded by listener donations. Drop your name, your role,
+      and what you'd put on the air.
+    </p>
+    <a class="hero-cta" href="https://github.com/jjc6676/crushradio" rel="noopener">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      See the code on GitHub →
+    </a>
+  </div>
+
+  <aside class="panel">
+    <div class="card">
+      <div class="card-head">
+        <div class="h">Help build <em>it</em></div>
+        <div class="id">Open Mic // 01</div>
+      </div>
+
+      <form class="form" id="join" action="https://formsubmit.co/jason.choplin@gmail.com" method="POST">
+        <input type="hidden" name="_subject" value="🔴 New Crush Radio submission">
+        <input type="hidden" name="_captcha" value="false">
+        <input type="hidden" name="_template" value="table">
+        <input type="text" name="_honey" style="display:none" tabindex="-1" autocomplete="off">
+
+        <label>Name or handle
+          <input type="text" name="name" required autocomplete="name" placeholder="DJ Whoever">
+        </label>
+
+        <label>Email
+          <input type="email" name="email" required autocomplete="email" placeholder="you@somewhere.com">
+        </label>
+
+        <label>I'm here as
+          <select name="role" required>
+            <option value="" disabled selected>Pick one</option>
+            <option value="Artist — I'd upload tracks">Artist — I'd upload tracks</option>
+            <option value="Listener — I'd tune in and vote">Listener — I'd tune in and vote</option>
+            <option value="Contributor — I'd help build the code">Contributor — I'd help build the code</option>
+            <option value="All of it">All of it</option>
+          </select>
+        </label>
+
+        <label>What would you upload, listen to, or build?
+          <textarea name="idea" required placeholder="A track you'd send in. A show you'd tune in for. A feature you'd build. One sentence is fine."></textarea>
+        </label>
+
+        <button type="submit" class="submit">Send it ↗</button>
+      </form>
+
+      <div id="toast" class="toast" role="status"></div>
+
+      <div class="form-foot">
+        No spam. No newsletter. Your email's just so we can hit you back when uploads open
+        and the broadcast goes live. Code's going up at <a href="https://github.com/jjc6676/crushradio" style="color:var(--ink);border-bottom:1px solid var(--rule)" rel="noopener">github.com/jjc6676/crushradio</a>.
+      </div>
+    </div>
+
+    <div class="eq" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+    </div>
+  </aside>
+</main>
+
+<div class="signal" aria-hidden="true"><div class="signal-line"></div></div>
+
+<footer class="foot">
+  <div>© Crush Radio · Community-built · All rights reserved</div>
+  <div class="social">
+    <a href="https://github.com/jjc6676/crushradio" rel="noopener">GitHub</a>
+    <a href="#" rel="noopener">Instagram</a>
+    <a href="#" rel="noopener">Spotify</a>
+    <a href="mailto:hello@crushradio.com">Contact</a>
+  </div>
+</footer>
+
+<script>
+  // AJAX-submit the form so we don't bounce people to the formsubmit confirmation page.
+  (function(){
+    const form = document.getElementById('join');
+    const toast = document.getElementById('toast');
+    if (!form) return;
+    form.addEventListener('submit', async function(e){
+      e.preventDefault();
+      const btn = form.querySelector('.submit');
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      toast.className = 'toast';
+      toast.textContent = '';
+      try {
+        const data = new FormData(form);
+        const res = await fetch(form.action, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          body: data,
+        });
+        if (res.ok) {
+          form.reset();
+          toast.className = 'toast show';
+          toast.textContent = 'Locked in. We got it — stay on the dial.';
+        } else {
+          throw new Error('http ' + res.status);
+        }
+      } catch (err) {
+        toast.className = 'toast show error';
+        toast.textContent = 'Signal lost. Try again, or email hello@crushradio.com.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    });
+  })();
+</script>
+</body>
+</html>
