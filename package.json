@@ -5,6 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "predev": "npm run build",
+    "predeploy": "npm run build",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:schema": "wrangler d1 execute crushradio --remote --file=infra/schema.sql",

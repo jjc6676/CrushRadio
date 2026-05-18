@@ -2,6 +2,7 @@
 worker.built.js
 worker.built.b64
 worker.built.gz.b64
+workers/main/index.built.js
 *.b64.a
 *.b64.b
 b64_a.txt
