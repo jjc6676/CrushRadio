@@ -76,6 +76,18 @@ async function renderHomePage() {
       "x-content-type-options": "nosniff",
       "referrer-policy": "strict-origin-when-cross-origin",
       "x-frame-options": "SAMEORIGIN",
+      "permissions-policy": "geolocation=(), microphone=(), camera=(), payment=()",
+      "content-security-policy":
+        "default-src 'self'; " +
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+        "font-src 'self' https://fonts.gstatic.com data:; " +
+        "img-src 'self' data:; " +
+        "media-src 'self' https://audio.crushradio.com; " +
+        "connect-src 'self' wss://crushradio.com wss://www.crushradio.com; " +
+        "script-src 'self'; " +
+        "frame-ancestors 'self'; " +
+        "base-uri 'self'; " +
+        "form-action 'self'",
     },
   });
 }

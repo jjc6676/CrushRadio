@@ -1,7 +1,7 @@
 {
   "name": "crushradio",
   "version": "1.0.0",
-  "description": "Open-source community radio station. Artists upload originals, everyone tunes in to the same live broadcast, listeners tap CRUSHED IT or NEXT — votes decide what survives.",
+  "description": "Open-source community radio. Weekly live transmissions of original tracks. Listeners tap CRUSHED IT; the top third survive into the Hall of Crush.",
   "private": true,
   "type": "module",
   "scripts": {

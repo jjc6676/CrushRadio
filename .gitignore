@@ -31,11 +31,18 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+.cursor/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# Agent / Claude local state
+.claude/
+CLAUDE.md
+AGENTS.md
+GEMINI.md
 
 # Coverage
 coverage/
