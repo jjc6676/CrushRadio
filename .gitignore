@@ -53,3 +53,6 @@ coverage/
 
 # oh-my-claudecode local state
 .omc/
+
+# Wrangler local state (D1 local copy, KV emulator, etc.)
+.wrangler/
