@@ -6,7 +6,7 @@
 
 ## Vision
 
-Crush Radio is an open-source community radio station. Anyone can upload original music to be heard worldwide. Listeners decide what survives by tapping **CRUSHED IT** or **NEXT** on the live stream. Everyone hears the same broadcast at the same moment — tuning in means tuning in *with* people. Tracks with strong reception get more airtime; tracks that don't land drop out of rotation. Code lives on GitHub. The station runs on listener donations. No ads, no labels, no algorithmic favorites.
+Crush Radio is an open-source community radio station. Anyone can upload original music to be heard worldwide. Listeners decide what survives by tapping **CRUSHED IT** on the tracks worth keeping — silence retires the rest. There is no skip button: everyone hears the same broadcast at the same moment, and tuning in means tuning in *with* people. Tracks that earn the love get more airtime; tracks that don't land drop out of rotation. Code lives on GitHub. The station runs on listener donations. No ads, no labels, no algorithmic favorites.
 
 > Built by the people who'd actually listen. Voted on by the people actually listening.
 
@@ -17,20 +17,24 @@ Crush Radio is an open-source community radio station. Anyone can upload origina
 | Core mechanic | **Open jukebox — everything plays, votes decide survival** | Matches "no gatekeepers" ethos |
 | OSS shape | **One canonical station (Lichess model)** | Owner runs crushradio.com; community contributes code via PRs |
 | Moderation | **Original work only + DMCA safe harbor** | Click-through attestation at upload. Reactive takedown. Lowest workload. |
-| Voting | **Anonymous tap-vote on the player** | One vote per fingerprint+IP per track. No login friction. Tighten later if abused. |
+| Voting | **One positive button — CRUSHED IT — anonymous tap-vote on the player** | One vote per fingerprint+IP per track. No skip button. No login friction. Tighten later if abused. |
 | Listening | **ONE shared live stream** | "We're all listening together" — radio feel, far cheaper than per-listener |
 | Monetization | **Pure donation jar (v1)** | Stripe Checkout or Buy Me a Coffee. Layer supporter tier / sponsor reads later. |
 
 ## Survival algorithm
 
-- **5-play trial run** for every new track. Plays regardless of votes during trial.
-- After play 5, score = `crushed_it / (crushed_it + next)`:
-  - **≥ 60%** → `rotating` (replay every 90+ min)
-  - **30–60%** → `background` (plays occasionally, low priority)
-  - **< 30%** → `retired` (archived on artist profile, not aired)
+Positive-only voting means "no vote" is the negative signal. The metric is the **crush rate per listener** during each airing — how many of the people actually on the broadcast tapped CRUSHED IT. The Rotator already tracks unique connected fingerprints per play window, so the score is computable without any additional signal from the user.
+
+- **5-play trial run** for every new track. Plays regardless of crush rate during trial.
+- After play 5, `crush_rate = total_crushed_it / total_unique_listeners_during_plays`:
+  - **High** → `rotating` (replay every 90+ min)
+  - **Medium** → `background` (plays occasionally, low priority)
+  - **Low** → `retired` (archived on artist profile, not aired)
 - Reassessed every 10 plays after — tracks can rise or fall.
 - **Cool-downs:** no track within 90 min of itself; no artist within 20 min of themselves.
 - **Flags:** 3 within an hour → auto-pulled pending human review.
+
+> **Open question — thresholds:** the High / Medium / Low cutoffs are TBD. Initial guess is ~25% / ~10% / below 10%, but the right numbers depend on real listener behavior (people don't tap CRUSHED IT on every track they like). Calibrate after the first week of real plays.
 
 ## Architecture (Cloudflare-native)
 
@@ -77,7 +81,7 @@ We don't run an HLS broadcast. Instead:
 ## v1 — Launch scope
 
 - Upload page (drag-drop, attestation, R2 + D1 write)
-- Listener page (TUNE IN button, now-playing card, two giant vote buttons, flag)
+- Listener page (TUNE IN button, now-playing card, one giant CRUSHED IT vote button, flag)
 - Rotator Durable Object (survival algorithm, cool-downs)
 - Artist profile page (`/a/<slug>` — uploads + status)
 - DMCA agent registration + `/takedown` form

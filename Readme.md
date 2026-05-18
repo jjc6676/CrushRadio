@@ -1,6 +1,6 @@
 # Crush Radio
 
-**An open-source community radio station. Artists upload originals. Everyone tunes in to the same live broadcast. Listeners tap CRUSHED IT or NEXT — votes decide what survives.**
+**An open-source community radio station. Artists upload originals. Everyone tunes in to the same live broadcast. Listeners tap CRUSHED IT on the tracks worth keeping — silence retires the rest.**
 
 Live coming-soon page: [crushradio.com](https://crushradio.com) · See live activity: [crushradio.com/code](https://crushradio.com/code)
 
@@ -14,7 +14,7 @@ Crush Radio is a community-built radio station. The full design is in [docs/spec
 
 **v1 — building:** the full platform.
 - Upload page (drag-drop original audio, click-through attestation, R2 storage)
-- Listener page (one big TUNE IN button, shared live "broadcast", giant CRUSHED IT / NEXT vote buttons)
+- Listener page (one big TUNE IN button, shared live "broadcast", one giant CRUSHED IT vote button)
 - Rotator Durable Object (the synced-jukebox conductor — every listener hears the same track at the same moment)
 - Survival algorithm (5-play trial → ≥60% crushed-it ratio rotates, 30–60% backgrounds, <30% retires)
 - Artist profile page
