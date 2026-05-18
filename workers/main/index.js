@@ -143,7 +143,7 @@ function codeHtml(data) {
   const { repo, commits, pulls, issues } = data;
 
   const repoExists = !!repo && !repo.message;
-  const desc = repoExists ? escapeHtml(repo.description || "An open-source community radio station.") : "Repo is being initialized. Check back in a sec.";
+  const desc = repoExists ? (repo.description || "An open-source community radio station.") : "Repo is being initialized. Check back in a sec.";
   const stars = repoExists ? repo.stargazers_count : 0;
   const forks = repoExists ? repo.forks_count : 0;
   const watchers = repoExists ? repo.subscribers_count : 0;
