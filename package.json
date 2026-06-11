@@ -10,11 +10,15 @@
     "predeploy": "npm run build",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "preview": "npm run build && wrangler versions upload",
     "db:schema": "wrangler d1 execute crushradio --remote --file=infra/schema.sql",
     "db:schema:local": "wrangler d1 execute crushradio --local --file=infra/schema.sql",
+    "db:migrate": "wrangler d1 execute crushradio --remote --file=infra/migrations/0002-transmissions.sql",
+    "db:migrate:local": "wrangler d1 execute crushradio --local --file=infra/migrations/0002-transmissions.sql",
     "db:seed": "wrangler d1 execute crushradio --remote --file=infra/seed.sql",
     "db:seed:local": "wrangler d1 execute crushradio --local --file=infra/seed.sql",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "tx:schedule": "node scripts/schedule-transmission.mjs",
+    "test": "node --test"
   },
   "repository": {
     "type": "git",
