@@ -38,9 +38,9 @@ Thumbs.db
 *.sln
 *.sw?
 
-# Agent / Claude local state
+# Agent / Claude local state (CLAUDE.md itself is committed — agents read it)
 .claude/
-CLAUDE.md
+CLAUDE.local.md
 AGENTS.md
 GEMINI.md
 
