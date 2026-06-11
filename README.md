@@ -38,9 +38,9 @@ All timestamps stored in UTC; CT is presentation only.
 
 ## Status
 
-Crush Radio is in **pre-Transmission 001** build. Infrastructure (Worker, Rotator Durable Object, D1, KV, R2) is live. The transmission state machine, upload route, vote API, setlist page, and results pipeline are the active work.
+Crush Radio is **ready for Transmission 001**. The transmission state machine, gated upload/vote/flag APIs, setlist page, live player, results certification, replay, and Hall of Crush are built. What remains is operational: schedule T001 (`npm run tx:schedule`) and curate the first setlist — see [docs/runbook-t001.md](docs/runbook-t001.md).
 
-See [docs/specs/2026-05-17-transmissions-design.md](docs/specs/2026-05-17-transmissions-design.md) for the full architecture and T001 parameters.
+See [docs/specs/2026-05-17-transmissions-design.md](docs/specs/2026-05-17-transmissions-design.md) for the full architecture and T001 parameters. All six UI states can be previewed without data via demo mode: `/#demo=submissions_open`, `/#demo=live`, `/#demo=results`, etc.
 
 ## Stack
 
@@ -57,16 +57,25 @@ Estimated cost at a few thousand DAU around transmission windows: **$5–15/mont
 
 ```
 crushradio/
-├── index.html              — the static home page shell (hero + feed marker)
-├── workers/main/index.js   — main Worker: routing, GitHub feed render, state-aware routes
-├── rotator/
-│   ├── index.js            — Rotator Durable Object (WebSocket + alarm)
-│   └── queue.js            — setlist playback order
+├── index.html              — the static home page shell (hero + tx section + feed marker)
+├── web/app.js              — client app: renders the transmission section from /api/state
+├── workers/main/
+│   ├── index.js            — main Worker: routing, scheduled() cron, GitHub feed render
+│   ├── state.js            — derived state machine + signal floor + survival rule (pure)
+│   ├── api.js              — upload / vote / flag / state / hall / audio routes
+│   ├── certify.js          — cron jobs: Rotator kick + results certification
+│   └── pages.js            — /transmissions/:n setlist & results pages
+├── rotator/index.js        — Rotator Durable Object: setlist conductor + listener accounting
 ├── infra/
-│   ├── schema.sql          — D1 schema
+│   ├── schema.sql          — D1 schema (canonical, fresh installs)
+│   ├── migrations/         — additive migrations for existing databases
 │   └── seed.sql            — test data for local dev
-├── scripts/build.mjs       — inlines index.html into workers/main/index.built.js
-├── wrangler.toml           — Cloudflare bindings + custom domains
+├── scripts/
+│   ├── build.mjs           — inlines index.html + web/app.js into index.built.js
+│   └── schedule-transmission.mjs — prints the weekly-cycle SQL (CT → UTC ms)
+├── tests/state.test.mjs    — state machine + survival rule tests (node --test)
+├── wrangler.toml           — Cloudflare bindings, custom domains, cron trigger
+├── docs/runbook-t001.md    — owner runbook: schedule, curate, lock, certify
 └── docs/specs/             — design specs (latest one wins)
 ```
 
@@ -75,22 +84,29 @@ crushradio/
 ```bash
 npm install
 npm run db:schema:local    # apply schema to local D1
-npm run db:seed:local      # seed test data
+npm run db:seed:local      # seed test data (opens a T001 submission window)
 npm run dev                # wrangler dev on http://localhost:8787
+npm test                   # state machine + survival rule tests
 ```
 
 Then in a second terminal:
 
 ```bash
-curl http://localhost:8787/api/state          # current state + next transition (UTC ms)
-curl http://localhost:8787/api/status         # now-playing JSON
+curl http://localhost:8787/api/state          # derived state + next transition (UTC ms)
+curl http://localhost:8787/api/transmissions/current   # schedule/setlist/results payload
+curl http://localhost:8787/api/status         # Rotator now-playing JSON
 npx wscat -c ws://localhost:8787/ws           # WebSocket — receives broadcasts during live state
 ```
+
+To walk the full weekly cycle locally (including the live broadcast and
+certification), see "Testing states locally" in [docs/runbook-t001.md](docs/runbook-t001.md).
 
 ## Deploy
 
 ```bash
-npm run deploy             # builds + ships to Cloudflare
+npm run preview            # builds + uploads a preview version (shareable URL, prod untouched)
+npm run deploy             # builds + ships to production
+npm run db:migrate         # one-time: apply the transmissions migration to remote D1
 ```
 
 The Worker is named `crushradio` and serves both `crushradio.com` and `www.crushradio.com` via custom-domain routes declared in `wrangler.toml`. Requires the Cloudflare Workers Paid plan ($5/mo) because Durable Objects.

@@ -1,12 +1,20 @@
 name = "crushradio"
 main = "workers/main/index.built.js"
+account_id = "4897a75a29edc61cdc040223058f49bc"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
+preview_urls = true
 
 routes = [
   { pattern = "crushradio.com", custom_domain = true },
   { pattern = "www.crushradio.com", custom_domain = true },
 ]
+
+# State transitions are derived from UTC timestamps; the cron only acts
+# when there is work to do (kick the Rotator during the live window,
+# certify results after broadcast end). Runs every minute, UTC.
+[triggers]
+crons = ["* * * * *"]
 
 [[d1_databases]]
 binding = "DB"

@@ -1,18 +1,46 @@
 // Crush Radio — Main Worker
 // Routes:
-//   /           → home page (HOME_HTML inlined at build time) with the
-//                 live GitHub feed injected in place of the <!--FEED--> marker
-//   /code       → 301 redirect to / (kept for legacy inbound links)
-//   /ws         → WebSocket upgrade → Rotator Durable Object
-//   /api/status → Rotator now-playing JSON (debug / Plan 2 prep)
-//   /api/*      → 404 stub until Plan 2 wires upload/vote/flag/takedown
-//   /robots.txt → robots
+//   /                    → home page (HOME_HTML inlined at build time) with the
+//                          live GitHub feed injected at the <!--FEED--> marker
+//   /transmissions/:num  → setlist page (pending → setlist → results)
+//   /ws                  → WebSocket upgrade → Rotator Durable Object
+//   /audio/:track_id     → Range-aware audio streaming from R2 (state-gated)
+//   /assets/app.js       → client app (APP_JS inlined at build time)
+//   GET  /api/state      → derived station state + next transition (UTC ms)
+//   GET  /api/transmissions/current → public payload (schedule/setlist/results)
+//   GET  /api/hall       → Hall of Crush
+//   GET  /api/votes      → live crush count for one track
+//   GET  /api/status     → Rotator now-playing JSON
+//   POST /api/upload     → submissions_open only (attestation required), else 410
+//   POST /api/vote       → live only, else 410
+//   POST /api/flag       → any state (abuse/rights reports never stop)
+//   /robots.txt, /code (legacy 301)
 //
-// HOME_HTML is replaced at build time by scripts/build.mjs. Do not hand-edit.
+// scheduled(): cron every minute — kicks the Rotator during the live window
+// and certifies results after broadcast end. See certify.js.
+//
+// HOME_HTML and APP_JS are replaced at build time by scripts/build.mjs.
+// Do not hand-edit index.built.js.
 
 export { Rotator } from "../../rotator/index.js";
 
+import {
+  json,
+  fingerprint,
+  handleState,
+  handleUpload,
+  handleVote,
+  handleVoteCount,
+  handleFlag,
+  handleCurrentTransmission,
+  handleHall,
+  handleAudio,
+} from "./api.js";
+import { renderTransmissionPage, escapeHtml } from "./pages.js";
+import { runScheduled } from "./certify.js";
+
 const HOME_HTML = `__HTML__`;
+const APP_JS = `__APP_JS__`;
 
 const REPO_OWNER = "jjc6676";
 const REPO_NAME = "crushradio";
@@ -22,26 +50,66 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, "") || "/";
+    const method = request.method;
 
     if (path === "/ws") {
       if (request.headers.get("Upgrade") !== "websocket") {
         return new Response("Expected WebSocket upgrade", { status: 426 });
       }
+      const fp = await fingerprint(request);
       const id = env.ROTATOR.idFromName("global");
-      return env.ROTATOR.get(id).fetch(request);
+      const wsUrl = new URL(request.url);
+      wsUrl.searchParams.set("fp", fp);
+      return env.ROTATOR.get(id).fetch(new Request(wsUrl, request));
     }
 
-    if (path === "/api/status") {
+    if (path === "/api/state" && method === "GET") {
+      return handleState(env);
+    }
+    if (path === "/api/transmissions/current" && method === "GET") {
+      return handleCurrentTransmission(env);
+    }
+    if (path === "/api/hall" && method === "GET") {
+      return handleHall(env);
+    }
+    if (path === "/api/votes" && method === "GET") {
+      return handleVoteCount(url, env);
+    }
+    if (path === "/api/upload" && method === "POST") {
+      return handleUpload(request, env);
+    }
+    if (path === "/api/vote" && method === "POST") {
+      return handleVote(request, env);
+    }
+    if (path === "/api/flag" && method === "POST") {
+      return handleFlag(request, env);
+    }
+    if (path === "/api/status" && method === "GET") {
       const id = env.ROTATOR.idFromName("global");
       const statusUrl = new URL("/status", request.url);
       return env.ROTATOR.get(id).fetch(new Request(statusUrl, request));
     }
-
     if (path.startsWith("/api/")) {
-      return new Response(
-        JSON.stringify({ error: "Not implemented — coming in Plan 2" }),
-        { status: 404, headers: { "content-type": "application/json" } }
-      );
+      return json({ error: "No such endpoint." }, 404);
+    }
+
+    const audioMatch = path.match(/^\/audio\/([a-zA-Z0-9-]+)$/);
+    if (audioMatch && (method === "GET" || method === "HEAD")) {
+      return handleAudio(request, env, audioMatch[1]);
+    }
+
+    const txMatch = path.match(/^\/transmissions\/(t?\d+)$/i);
+    if (txMatch && method === "GET") {
+      return renderTransmissionPage(env, txMatch[1]);
+    }
+
+    if (path === "/assets/app.js") {
+      return new Response(APP_JS, {
+        headers: {
+          "content-type": "application/javascript; charset=utf-8",
+          "cache-control": "public, max-age=300",
+        },
+      });
     }
 
     if (path === "/robots.txt") {
@@ -64,6 +132,10 @@ export default {
       headers: { "content-type": "text/plain; charset=utf-8" },
     });
   },
+
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runScheduled(env));
+  },
 };
 
 async function renderHomePage() {
@@ -82,8 +154,9 @@ async function renderHomePage() {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
         "font-src 'self' https://fonts.gstatic.com data:; " +
         "img-src 'self' data:; " +
-        "media-src 'self' https://audio.crushradio.com; " +
-        "connect-src 'self' wss://crushradio.com wss://www.crushradio.com; " +
+        "media-src 'self' blob: https://audio.crushradio.com; " +
+        "connect-src 'self' wss://crushradio.com wss://www.crushradio.com " +
+        "wss://*.workers.dev ws://localhost:8787 ws://127.0.0.1:8787; " +
         "script-src 'self'; " +
         "frame-ancestors 'self'; " +
         "base-uri 'self'; " +
@@ -114,16 +187,6 @@ async function renderFeed() {
   const pulls = Array.isArray(pullsRaw) ? pullsRaw : [];
 
   return feedMarkup({ repo, commits, pulls, issues });
-}
-
-function escapeHtml(s) {
-  if (s == null) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }
 
 function timeAgo(iso) {
