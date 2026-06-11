@@ -38,35 +38,46 @@ function nextFriday(from = new Date()) {
   return d;
 }
 
+// All slots derive from the broadcast Friday's CALENDAR date — Date.UTC
+// normalizes d-4 / d+1 across month boundaries. Never subtract epoch ms:
+// Fri 8pm CT is already Saturday in UTC, which skews day arithmetic.
+function scheduleForFriday(y, m, d) {
+  return {
+    submission_open_at: zonedUtcMs(y, m, d - 4, 12), // Mon 12pm CT
+    submission_close_at: zonedUtcMs(y, m, d - 1, 20), // Thu 8pm CT
+    setlist_publish_at: zonedUtcMs(y, m, d, 12), // Fri 12pm CT
+    broadcast_start_at: zonedUtcMs(y, m, d, 20), // Fri 8pm CT
+    broadcast_end_at: zonedUtcMs(y, m, d, 22), // Fri 10pm CT
+    replay_close_at: zonedUtcMs(y, m, d + 1, 12), // Sat 12pm CT
+  };
+}
+
 const idArg = process.argv[2] || "T001";
 const dateArg = process.argv[3];
 
 let friday;
+let schedule;
 if (dateArg) {
-  const [y, m, day] = dateArg.split("-").map(Number);
-  friday = new Date(Date.UTC(y, m - 1, day));
+  const [yy, mm, dd] = dateArg.split("-").map(Number);
+  friday = new Date(Date.UTC(yy, mm - 1, dd));
   if (friday.getUTCDay() !== 5) {
-    console.error(`-- WARNING: ${dateArg} is not a Friday (UTC); proceeding anyway.`);
+    console.error(`-- WARNING: ${dateArg} is not a Friday; proceeding anyway.`);
+  }
+  schedule = scheduleForFriday(yy, mm, dd);
+  if (schedule.submission_open_at <= Date.now()) {
+    console.error(`-- WARNING: this cycle's submission window already opened; the site may skip states.`);
   }
 } else {
+  // Default to the next FULL cycle: a Friday whose Monday-noon submission
+  // open is still in the future. (The nearest Friday often is not — its
+  // window opened last Monday.)
   friday = nextFriday();
+  for (;;) {
+    schedule = scheduleForFriday(friday.getUTCFullYear(), friday.getUTCMonth() + 1, friday.getUTCDate());
+    if (schedule.submission_open_at > Date.now()) break;
+    friday = nextFriday(friday);
+  }
 }
-
-const y = friday.getUTCFullYear();
-const m = friday.getUTCMonth() + 1;
-const d = friday.getUTCDate();
-const dayMs = 24 * 3600 * 1000;
-
-const broadcastStart = zonedUtcMs(y, m, d, 20); // Fri 8pm CT
-const monday = new Date(broadcastStart - 4 * dayMs); // the Monday before
-const schedule = {
-  submission_open_at: zonedUtcMs(monday.getUTCFullYear(), monday.getUTCMonth() + 1, monday.getUTCDate(), 12),
-  submission_close_at: zonedUtcMs(y, m, d - 1, 20), // Thu 8pm CT
-  setlist_publish_at: zonedUtcMs(y, m, d, 12), // Fri 12pm CT
-  broadcast_start_at: broadcastStart,
-  broadcast_end_at: zonedUtcMs(y, m, d, 22), // Fri 10pm CT
-  replay_close_at: zonedUtcMs(y, m, d + 1, 12), // Sat 12pm CT
-};
 
 const number = parseInt(idArg.replace(/^T/i, ""), 10) || 1;
 const id = "T" + String(number).padStart(3, "0");

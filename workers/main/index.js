@@ -42,6 +42,13 @@ import { runScheduled } from "./certify.js";
 const HOME_HTML = `__HTML__`;
 const APP_JS = `__APP_JS__`;
 
+const FAVICON_SVG =
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
+  `<rect width="64" height="64" rx="12" fill="#0a0a0a"/>` +
+  `<circle cx="32" cy="32" r="13" fill="#ef2b2b"/>` +
+  `<circle cx="32" cy="32" r="21" fill="none" stroke="#ef2b2b" stroke-opacity=".35" stroke-width="4"/>` +
+  `</svg>`;
+
 const REPO_OWNER = "jjc6676";
 const REPO_NAME = "crushradio";
 const REPO_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}`;
@@ -110,6 +117,18 @@ export default {
           "cache-control": "public, max-age=300",
         },
       });
+    }
+
+    if (path === "/favicon.svg") {
+      return new Response(FAVICON_SVG, {
+        headers: {
+          "content-type": "image/svg+xml",
+          "cache-control": "public, max-age=86400",
+        },
+      });
+    }
+    if (path === "/favicon.ico") {
+      return Response.redirect(new URL("/favicon.svg", request.url).toString(), 301);
     }
 
     if (path === "/robots.txt") {
