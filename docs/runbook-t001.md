@@ -13,11 +13,17 @@ npm run tx:schedule -- T002 2026-06-26    # explicit transmission + broadcast Fr
 ```
 
 The script prints the schedule in CT for sanity plus an idempotent
-`INSERT ... ON CONFLICT` statement. Apply it:
+`INSERT ... ON CONFLICT` statement. Apply it via a file:
 
 ```bash
-node scripts/schedule-transmission.mjs | npx wrangler d1 execute crushradio --remote --command -
+node scripts/schedule-transmission.mjs > t001.sql
+npx wrangler d1 execute crushradio --remote --file t001.sql
 ```
+
+(On Windows PowerShell, `>` writes UTF-16 which wrangler reads as garbage —
+use `cmd /c "node scripts\schedule-transmission.mjs > t001.sql"` instead.)
+With no date argument the script picks the next FULL cycle — a Friday whose
+Monday-noon submission open is still in the future.
 
 The site flips to `submissions_open` automatically at Mon 12pm CT — state
 is derived from the timestamps, nothing else to turn on.

@@ -158,6 +158,14 @@ export class Rotator {
   }
 
   async alarm() {
+    // No show on the books (e.g. a stray alarm left over from an old
+    // deployment) — clear any stale now-playing state and go to sleep.
+    const show = await this.state.storage.get("show");
+    if (!show) {
+      await this.state.storage.delete("current_track");
+      await this.state.storage.deleteAlarm();
+      return;
+    }
     await this.syncToSchedule();
   }
 
@@ -226,9 +234,15 @@ export class Rotator {
   // --- Helpers ---
 
   async statusPayload() {
-    const current = await this.state.storage.get("current_track");
+    // current_track only counts while a show is on the books — guards
+    // against stale storage from older deployments reporting a phantom
+    // now-playing forever.
+    const [current, show] = await Promise.all([
+      this.state.storage.get("current_track"),
+      this.state.storage.get("show"),
+    ]);
     const listeners = this.state.getWebSockets().length;
-    if (!current) return { type: "off_air", listeners };
+    if (!current || !show) return { type: "off_air", listeners };
     return { ...current, listeners };
   }
 

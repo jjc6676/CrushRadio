@@ -172,6 +172,8 @@ function page(t, title, inner) {
 <meta property="og:title" content="${escapeHtml(title)} — Crush Radio">
 <meta property="og:description" content="One shared broadcast. Tap CRUSHED IT on the tracks worth keeping. The top third survive.">
 <meta property="og:type" content="website">
+<link rel="canonical" href="https://crushradio.com/transmissions/${String(t.number).padStart(3, "0")}">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
