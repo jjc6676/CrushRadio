@@ -40,6 +40,8 @@ import {
   renderTransmissionPage,
   renderTransmissionIcs,
   renderTrackStatusPage,
+  renderAboutPage,
+  renderCopyrightPage,
   escapeHtml,
 } from "./pages.js";
 import { handleStudioApi, renderStudioPage } from "./studio.js";
@@ -162,6 +164,13 @@ export default {
     }
     if (path === "/favicon.ico") {
       return Response.redirect(new URL("/favicon.svg", request.url).toString(), 301);
+    }
+
+    if (path === "/about" && method === "GET") {
+      return renderAboutPage();
+    }
+    if (path === "/copyright" && method === "GET") {
+      return renderCopyrightPage();
     }
 
     if (path === "/robots.txt") {
