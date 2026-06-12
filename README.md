@@ -38,9 +38,14 @@ All timestamps stored in UTC; CT is presentation only.
 
 ## Status
 
-Crush Radio is **ready for Transmission 001**. The transmission state machine, gated upload/vote/flag APIs, setlist page, live player, results certification, replay, and Hall of Crush are built. What remains is operational: schedule T001 (`npm run tx:schedule`) and curate the first setlist — see [docs/runbook-t001.md](docs/runbook-t001.md).
+Crush Radio is **live and scheduled for Transmission 001** (broadcast Friday June 19, 8pm CT). The whole weekly pipeline is automated around one human decision — the owner's curation taste:
 
-See [docs/specs/2026-05-17-transmissions-design.md](docs/specs/2026-05-17-transmissions-design.md) for the full architecture and T001 parameters. All six UI states can be previewed without data via demo mode: `/#demo=submissions_open`, `/#demo=live`, `/#demo=results`, etc.
+- **Artists** upload a file *or* paste a direct link to one (the Worker fetches and stores a copy). Every submission is magic-byte verified, rights-attested, rate-limited, and honeypot-gated. Each artist gets a **private status link** that tracks their track from pool → setlist → verdict.
+- **Curation** happens in `/studio` — a token-gated console with inline audition players, select/order controls, and one-click setlist lock. If the owner oversleeps, the **cron auto-locks** the selected tracks at Friday noon.
+- **Notifications** (selected / held / results) are composed automatically into an outbox; they auto-send via Resend when a key is configured, or surface as prefilled one-click mailto links when not.
+- **Listeners** get add-to-calendar (`/transmissions/001.ics` with a 30-minute alarm), the synced live player, and outbound **artist links** on the setlist, results, and Hall of Crush — crush a track, find its maker.
+
+See [docs/runbook-t001.md](docs/runbook-t001.md) for operating the station and [docs/specs/2026-05-17-transmissions-design.md](docs/specs/2026-05-17-transmissions-design.md) for the architecture. All six UI states preview without data via demo mode: `/#demo=submissions_open`, `/#demo=live`, `/#demo=results`, etc.
 
 ## Stack
 
@@ -59,12 +64,15 @@ Estimated cost at a few thousand DAU around transmission windows: **$5–15/mont
 crushradio/
 ├── index.html              — the static home page shell (hero + tx section + feed marker)
 ├── web/app.js              — client app: renders the transmission section from /api/state
+├── web/studio.js           — owner console client wiring
 ├── workers/main/
 │   ├── index.js            — main Worker: routing, scheduled() cron, GitHub feed render
 │   ├── state.js            — derived state machine + signal floor + survival rule (pure)
-│   ├── api.js              — upload / vote / flag / state / hall / audio routes
-│   ├── certify.js          — cron jobs: Rotator kick + results certification
-│   └── pages.js            — /transmissions/:n setlist & results pages
+│   ├── api.js              — upload (file or URL) / vote / flag / state / hall / audio + setlist lock
+│   ├── studio.js           — /studio owner console + curation API (token-gated via KV)
+│   ├── notify.js           — artist email composition + outbox + Resend delivery
+│   ├── certify.js          — cron jobs: auto-lock, Rotator kick, certification, outbox flush
+│   └── pages.js            — /transmissions/:n pages, /track/:id/:token status, .ics calendar
 ├── rotator/index.js        — Rotator Durable Object: setlist conductor + listener accounting
 ├── infra/
 │   ├── schema.sql          — D1 schema (canonical, fresh installs)

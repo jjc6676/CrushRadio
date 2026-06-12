@@ -8,6 +8,7 @@ import {
   pickActiveTransmission,
   certifyResults,
   parseSetlist,
+  wilsonLowerBound,
   SIGNAL_FLOOR,
 } from "../workers/main/state.js";
 
@@ -95,6 +96,30 @@ test("certifyResults: empty room → everything unjudged (owner escape valve app
   );
   assert.equal(out[0].status, "unjudged");
   assert.equal(out[0].crush_rate, 0);
+});
+
+test("wilsonLowerBound: more evidence at the same rate scores higher", () => {
+  assert.equal(wilsonLowerBound(0, 0), 0);
+  assert.ok(wilsonLowerBound(30, 100) > wilsonLowerBound(3, 10));
+  assert.ok(wilsonLowerBound(40, 100) > wilsonLowerBound(4, 10));
+  assert.ok(wilsonLowerBound(80, 100) > wilsonLowerBound(40, 100));
+  const lb = wilsonLowerBound(40, 100);
+  assert.ok(lb > 0.3 && lb < 0.4);
+});
+
+test("certifyResults: a loved big room outranks a same-rate small room", () => {
+  const stats = [
+    { track_id: "small", position: 1, played: true, crushes: 3, unique_listeners: 10 },
+    { track_id: "big", position: 2, played: true, crushes: 30, unique_listeners: 100 },
+    { track_id: "mid", position: 3, played: true, crushes: 5, unique_listeners: 40 },
+  ];
+  const out = certifyResults(stats, SIGNAL_FLOOR);
+  const byId = Object.fromEntries(out.map((r) => [r.track_id, r]));
+  // Same 30% rate — the 100-listener track carries far more evidence.
+  assert.equal(byId.big.rank, 1);
+  assert.equal(byId.big.status, "crushed"); // ceil(3 × 0.33) = 1 survivor
+  assert.equal(byId.small.rank, 2);
+  assert.equal(byId.small.status, "retired");
 });
 
 test("certifyResults: ties break by absolute crushes, then setlist position", () => {

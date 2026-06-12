@@ -1,19 +1,43 @@
-# T001 Owner Runbook
+# Owner Runbook
 
-Everything the owner does by hand for Transmission 001. Curation is
-CLI/SQL by design — a real admin UI is deferred until this is painful.
-All SQL runs through `npx wrangler d1 execute crushradio --remote --command "<sql>"`
-(drop `--remote` for local dev).
+How to run a transmission. Almost everything now happens in **/studio** —
+the token-gated owner console — or happens automatically on the cron.
+Raw SQL remains as the break-glass appendix at the bottom.
+
+## 0. One-time setup
+
+**Studio key** — generate a long random token and store it in KV:
+
+```bash
+npx wrangler kv key put "config:owner_token" "<long-random-token>" --namespace-id a0a85a30bb8e44069b53704d887e0e30 --remote
+```
+
+The console is then at `crushradio.com/studio?key=<token>`. The URL is the
+auth — treat it like a password. (Local dev uses the `preview_id` KV
+namespace: `7a73730a616a48d4b5a587fb5202fb59` with `--local`.)
+
+**Automated email (optional, recommended by T003)** — create a Resend
+account, verify the `crushradio.com` sending domain (SPF + DKIM records),
+then:
+
+```bash
+npx wrangler kv key put "config:resend_key" "re_..." --namespace-id a0a85a30bb8e44069b53704d887e0e30 --remote
+```
+
+The cron flushes the outbox automatically from then on. Without a key,
+every notification appears in /studio as a prefilled one-click
+`mailto:` link — composition is automated either way, only delivery is
+manual. Optional `config:mail_from` overrides the default
+`Crush Radio <transmissions@crushradio.com>`.
 
 ## 1. Schedule the transmission
 
 ```bash
-npm run tx:schedule                       # next upcoming Friday cycle, T001
+npm run tx:schedule                       # next FULL weekly cycle
 npm run tx:schedule -- T002 2026-06-26    # explicit transmission + broadcast Friday
 ```
 
-The script prints the schedule in CT for sanity plus an idempotent
-`INSERT ... ON CONFLICT` statement. Apply it via a file:
+Apply the printed SQL via a file:
 
 ```bash
 node scripts/schedule-transmission.mjs > t001.sql
@@ -22,71 +46,46 @@ npx wrangler d1 execute crushradio --remote --file t001.sql
 
 (On Windows PowerShell, `>` writes UTF-16 which wrangler reads as garbage —
 use `cmd /c "node scripts\schedule-transmission.mjs > t001.sql"` instead.)
-With no date argument the script picks the next FULL cycle — a Friday whose
-Monday-noon submission open is still in the future.
 
 The site flips to `submissions_open` automatically at Mon 12pm CT — state
 is derived from the timestamps, nothing else to turn on.
 
-## 2. Curate (Thu 8pm → Fri 12pm CT)
+## 2. Curate (Thu 8pm → Fri 12pm CT) — in /studio
 
-See the pool:
+Open `/studio?key=…`. The pool lists every held track with an inline
+player (the studio key unlocks audition audio), flag counts, rollover
+badges, and the artist's outbound link.
 
-```sql
-SELECT t.id, a.name, t.title, t.duration_s, t.flag_count, t.rollover_count
-FROM tracks t JOIN artists a ON a.id = t.artist_id
-WHERE t.track_status = 'held'
-ORDER BY t.uploaded_at;
-```
+- **Select** with the checkbox. Target 20–25.
+- **Order** with the position inputs (1 airs first). Unnumbered selected
+  tracks follow in upload order.
+- Anything with a ⚑ flag deserves a listen with the rights attestation in
+  mind before selecting.
 
-Listen to a candidate: tracks are in R2 at the `filename` key —
-`npx wrangler r2 object get crushradio-audio/tracks/<id>.mp3 --file out.mp3`.
-Review the rights attestation issues: anything with `flag_count > 0` gets a
-look before selection.
+## 3. Lock the setlist
 
-Select 20–25 tracks (max 4 min each counts toward air time):
+Click **Lock setlist** when you're done. If you don't, the cron locks it
+automatically at Fri 12pm CT (setlist publish) from whatever is selected.
+Either way:
 
-```sql
-UPDATE tracks SET track_status = 'selected' WHERE id IN ('<id1>', '<id2>', ...);
-```
+- `setlist_json` is written, capped at 25 (overflow returns to held)
+- selected + held notification emails are composed into the outbox
+- the public setlist page goes live at publish time with `#artist-slug`
+  deep links
+- artist status pages reveal selection **only after publish** — the email
+  and the public drop are simultaneous by design
 
-## 3. Lock the setlist (before Fri 12pm CT)
+**Unlock** is available only before publish. After publish, the only edit
+is **emergency remove** (rights violation, abuse, or technical failure) —
+the track returns to `held`, never `retired`.
 
-Write the curated order into `setlist_json`. Order the array exactly as
-the broadcast should run:
+## 4. Notifications
 
-```sql
-UPDATE transmissions SET setlist_json = (
-  SELECT json_group_array(json_object('position', rn, 'track_id', id))
-  FROM (
-    SELECT t.id, ROW_NUMBER() OVER (ORDER BY t.uploaded_at) AS rn
-    FROM tracks t WHERE t.track_status = 'selected'
-  )
-), updated_at = strftime('%s','now') * 1000
-WHERE id = 'T001';
-```
+With `config:resend_key` set: the cron sends everything within a minute or
+two. Without it: /studio shows each pending email as an **open email**
+mailto link (subject and body prefilled) — click, send, **mark sent**.
 
-(Or hand-write the JSON for a deliberate order: `[{"position":1,"track_id":"..."}, ...]` —
-titles/artists/durations are joined from D1 at broadcast time, so only
-`position` and `track_id` matter here.)
-
-The setlist page goes public at Fri 12pm CT automatically:
-`crushradio.com/transmissions/001`, with `#artist-slug` deep links per slot.
-
-## 4. Notify artists (Fri 12pm CT — manual Gmail for T001)
-
-```sql
--- Selected
-SELECT a.name, a.email, t.title FROM tracks t JOIN artists a ON a.id = t.artist_id
-WHERE t.track_status = 'selected';
--- Held for a future transmission
-SELECT a.name, a.email, t.title FROM tracks t JOIN artists a ON a.id = t.artist_id
-WHERE t.track_status = 'held';
-```
-
-Selected artists get their promo line:
-*"I'm transmitting on Crush Radio tonight. Friday 8pm CT."* plus their
-deep link `crushradio.com/transmissions/001#<artist-slug>`.
+Results emails queue automatically at certification (step 6).
 
 ## 5. Broadcast night (Fri 8pm CT) — touch nothing
 
@@ -94,48 +93,33 @@ The cron kicks the Rotator at 8:00pm, the setlist plays in order, votes
 land via `/api/vote`. If the DO restarts it re-syncs from the wall clock.
 Owner's job: tune in like everyone else.
 
-**Emergency setlist removal** (rights violation / abuse / technical
-failure only — the only post-lock edit allowed):
-
-```sql
-UPDATE tracks SET track_status = 'held' WHERE id = '<track-id>';
--- then remove its entry from transmissions.setlist_json and renumber positions
-```
-
 ## 6. Certification (Fri 10pm CT — automatic)
 
 Within a minute of `broadcast_end_at` the cron computes eligibility and
-crush rate, writes `transmission_results`, and flips each track to
-`crushed` / `retired` / `unjudged`. Verify:
-
-```sql
-SELECT track_id, status, rank, crushes, unique_listeners,
-       ROUND(crush_rate * 100) AS pct
-FROM transmission_results WHERE transmission_id = 'T001' ORDER BY rank;
-```
+crush rate, writes `transmission_results`, flips each track to
+`crushed` / `retired` / `unjudged`, and queues a results email per artist.
+The verdicts table appears in /studio and on `/transmissions/001`.
 
 **Escape valve** — if attendance was too small and everything came back
-`unjudged`, the owner may manually certify winners (T001 only):
-
-```sql
-UPDATE transmission_results SET status = 'crushed', rank = 1
-WHERE transmission_id = 'T001' AND track_id = '<track-id>';
-UPDATE tracks SET track_status = 'crushed', status = 'crushed' WHERE id = '<track-id>';
-```
+`unjudged`, manually certify winners (T001 only; see appendix SQL).
 
 ## 7. After (Sat 12pm CT)
 
 Replay disappears and the station goes dark on its own. The Hall of Crush
-stays up forever. Schedule T002 (step 1) whenever ready.
+stays up forever. Schedule the next transmission (step 1) whenever ready.
 
-## Testing states locally
+---
+
+## Appendix A — Testing states locally
 
 ```bash
 npm run db:schema:local && npm run db:seed:local && npm run dev
+npx wrangler kv key put "config:owner_token" "test-token" --namespace-id 7a73730a616a48d4b5a587fb5202fb59 --local
 ```
 
-The seed opens T001 submissions one hour in the past. Time-travel by
-shifting the row, e.g. jump to the live window:
+The seed opens T001 submissions one hour in the past; /studio?key=test-token
+works immediately. Time-travel by shifting the row, e.g. jump to the live
+window:
 
 ```sql
 UPDATE transmissions SET
@@ -152,6 +136,42 @@ WHERE id = 'T001';
 `curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"` after starting
 `wrangler dev --test-scheduled`.)
 
-The six UI states can also be previewed with zero data via demo mode:
+The six UI states preview with zero data via demo mode:
 `/#demo=dark`, `/#demo=submissions_open`, `/#demo=submissions_closed`,
 `/#demo=setlist_published`, `/#demo=live`, `/#demo=results`.
+
+## Appendix B — Break-glass SQL
+
+Everything /studio does, by hand (`npx wrangler d1 execute crushradio
+--remote --command "<sql>"`):
+
+```sql
+-- See the pool
+SELECT t.id, a.name, t.title, t.duration_s, t.flag_count, t.rollover_count
+FROM tracks t JOIN artists a ON a.id = t.artist_id
+WHERE t.track_status = 'held' ORDER BY t.uploaded_at;
+
+-- Select / deselect
+UPDATE tracks SET track_status = 'selected' WHERE id IN ('<id1>','<id2>');
+UPDATE tracks SET track_status = 'held' WHERE id = '<id>';
+
+-- Lock by hand (positions from curation_position, else upload order)
+UPDATE transmissions SET setlist_json = (
+  SELECT json_group_array(json_object('position', rn, 'track_id', id))
+  FROM (SELECT t.id, ROW_NUMBER() OVER (ORDER BY COALESCE(t.curation_position, 9999), t.uploaded_at) AS rn
+        FROM tracks t WHERE t.track_status = 'selected' LIMIT 25)
+), updated_at = strftime('%s','now') * 1000
+WHERE id = 'T001';
+
+-- Emergency post-lock removal (rights/abuse/tech only)
+UPDATE tracks SET track_status = 'held' WHERE id = '<track-id>';
+-- then prune transmissions.setlist_json and renumber positions
+
+-- Manual certification escape valve
+UPDATE transmission_results SET status = 'crushed', rank = 1
+WHERE transmission_id = 'T001' AND track_id = '<track-id>';
+UPDATE tracks SET track_status = 'crushed', status = 'crushed' WHERE id = '<track-id>';
+
+-- Listen to a candidate outside /studio
+-- npx wrangler r2 object get crushradio-audio/tracks/<id>.mp3 --file out.mp3
+```

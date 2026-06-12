@@ -14,6 +14,7 @@ const OUT_PATH = "workers/main/index.built.js";
 const ASSETS = [
   { placeholder: "`__HTML__`", path: "index.html" },
   { placeholder: "`__APP_JS__`", path: "web/app.js" },
+  { placeholder: "`__STUDIO_JS__`", path: "web/studio.js" },
 ];
 
 // Escape each asset so it survives being embedded inside a JS template
