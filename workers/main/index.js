@@ -36,11 +36,18 @@ import {
   handleHall,
   handleAudio,
 } from "./api.js";
-import { renderTransmissionPage, escapeHtml } from "./pages.js";
+import {
+  renderTransmissionPage,
+  renderTransmissionIcs,
+  renderTrackStatusPage,
+  escapeHtml,
+} from "./pages.js";
+import { handleStudioApi, renderStudioPage } from "./studio.js";
 import { runScheduled } from "./certify.js";
 
 const HOME_HTML = `__HTML__`;
 const APP_JS = `__APP_JS__`;
+const STUDIO_JS = `__STUDIO_JS__`;
 
 const FAVICON_SVG =
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
@@ -96,13 +103,31 @@ export default {
       const statusUrl = new URL("/status", request.url);
       return env.ROTATOR.get(id).fetch(new Request(statusUrl, request));
     }
+    const studioMatch = path.match(/^\/api\/studio\/([a-z]+)$/);
+    if (studioMatch && method === "POST") {
+      return handleStudioApi(request, env, studioMatch[1]);
+    }
     if (path.startsWith("/api/")) {
       return json({ error: "No such endpoint." }, 404);
+    }
+
+    if (path === "/studio" && method === "GET") {
+      return renderStudioPage(request, env);
+    }
+
+    const trackMatch = path.match(/^\/track\/([a-zA-Z0-9-]+)\/([a-f0-9]{16,64})$/);
+    if (trackMatch && method === "GET") {
+      return renderTrackStatusPage(env, trackMatch[1], trackMatch[2]);
     }
 
     const audioMatch = path.match(/^\/audio\/([a-zA-Z0-9-]+)$/);
     if (audioMatch && (method === "GET" || method === "HEAD")) {
       return handleAudio(request, env, audioMatch[1]);
+    }
+
+    const icsMatch = path.match(/^\/transmissions\/(t?\d+)\.ics$/i);
+    if (icsMatch && method === "GET") {
+      return renderTransmissionIcs(env, icsMatch[1]);
     }
 
     const txMatch = path.match(/^\/transmissions\/(t?\d+)$/i);
@@ -115,6 +140,14 @@ export default {
         headers: {
           "content-type": "application/javascript; charset=utf-8",
           "cache-control": "public, max-age=300",
+        },
+      });
+    }
+    if (path === "/assets/studio.js") {
+      return new Response(STUDIO_JS, {
+        headers: {
+          "content-type": "application/javascript; charset=utf-8",
+          "cache-control": "no-store",
         },
       });
     }

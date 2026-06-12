@@ -41,11 +41,20 @@ One Worker, one Durable Object, four bindings (D1 `DB`, KV `KV`, R2 `AUDIO`, DO 
 - `workers/main/state.js` — the six-state machine, signal floor, and survival rule.
   **Pure functions only.** It is imported by `node --test` and by the Rotator, so it
   must never touch Workers APIs, bindings, or `Date.now()` internally.
-- `workers/main/api.js` — upload/vote/flag/state/hall/audio handlers + `hydrateSetlist`.
-- `workers/main/certify.js` — the cron's two jobs: kick the Rotator during the live
-  window (idempotent, every minute) and certify results once after broadcast end.
-- `workers/main/pages.js` — server-rendered `/transmissions/:n` (pending → setlist
-  with `#artist-slug` anchors → results table).
+- `workers/main/api.js` — upload (file or fetch-by-URL, magic-byte sniffed,
+  honeypot-gated)/vote/flag/state/hall/audio handlers + `hydrateSetlist` +
+  `lockSetlist` (shared by /studio and the auto-lock cron) + `requireOwner`.
+- `workers/main/studio.js` — the `/studio` owner console and its POST API
+  (curate/lock/unlock/remove/notify). Auth is the KV `config:owner_token`
+  compared in `requireOwner`; there are no accounts.
+- `workers/main/notify.js` — artist email composition (selected/held/results),
+  the idempotent outbox, and Resend delivery (KV `config:resend_key`).
+- `workers/main/certify.js` — the cron's jobs, every minute: auto-lock the
+  setlist at publish time, kick the Rotator during the live window
+  (idempotent), certify results once after broadcast end, flush the outbox.
+- `workers/main/pages.js` — server-rendered `/transmissions/:n` (pending →
+  setlist with `#artist-slug` anchors → results table), the private
+  `/track/:id/:token` artist status page, and the `.ics` calendar feed.
 - `rotator/index.js` — the Rotator DO: plays the setlist in order during the
   broadcast window, self-syncs from the wall clock after restarts, records
   listener-seconds (`track_listens`) for the signal floor, hibernates after.
@@ -75,11 +84,23 @@ One Worker, one Durable Object, four bindings (D1 `DB`, KV `KV`, R2 `AUDIO`, DO 
    must never block or crash the broadcast — keep the try/catch swallows.
 7. **Audio gating:** `crushed` tracks stream forever; setlist tracks stream only
    while their transmission is `live` or `results`. Everything else is 403.
-8. **The setlist locks at Friday noon CT.** Post-lock removal happens only for
-   rights violations, abuse, or technical failure (runbook §5) — removed tracks go
+8. **The setlist locks at Friday noon CT** — by the owner in /studio or by the
+   auto-lock cron, whichever comes first. Post-lock removal happens only for
+   rights violations, abuse, or technical failure (runbook) — removed tracks go
    back to `held`, never `retired`.
 9. **Keep it one Worker.** Modules under `workers/main/` are fine; new Workers are
    not (the lone exception is the disposable `crushradio-preview`).
+10. **Selection is secret until publish.** The artist status page and emails must
+    not reveal `selected` before `setlist_publish_at` — the artist email and the
+    public setlist drop simultaneously.
+11. **Notification plumbing never blocks the pipeline.** Outbox writes are
+    idempotent (unique on kind+transmission+track) and wrapped in
+    try/catch; a failed email must never fail a lock or certification.
+12. **No ingestion without a recognized audio signature.** Both upload paths
+    (file and fetch-by-URL) go through `sniffAudio`; the extension allowlist
+    alone is not a gate. Owner-only access (`requireOwner`) reads the token
+    from KV `config:owner_token`; config lives in KV (`config:*`), not in
+    bindings, so deploys never need binding changes.
 
 ## Verification — required before declaring work done
 

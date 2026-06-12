@@ -81,9 +81,22 @@ export class Rotator {
   async startShow(show) {
     if (!show || !Array.isArray(show.setlist) || show.setlist.length === 0) return;
 
+    // Replace the stored show whenever the setlist CONTENT changes, not just
+    // when the transmission id does — otherwise an emergency removal (the
+    // owner pulling a track for rights/abuse/tech) never reaches the
+    // conductor and the removed track keeps "airing". syncToSchedule then
+    // re-times the remaining slots from the wall clock.
     const existing = await this.state.storage.get("show");
-    if (!existing || existing.transmission_id !== show.transmission_id) {
+    const sig = (s) => s.setlist.map((x) => x.track_id).join(",");
+    if (!existing || existing.transmission_id !== show.transmission_id || sig(existing) !== sig(show)) {
       await this.state.storage.put("show", show);
+      // If the track currently on air is gone from the new setlist, close
+      // its listener accounting now so credit stops at the removal boundary.
+      const current = await this.state.storage.get("current_track");
+      if (current && !show.setlist.some((s) => s.track_id === current.track_id)) {
+        await this.finalizeTrack(current, Date.now());
+        await this.state.storage.delete("current_track");
+      }
     }
     await this.syncToSchedule();
   }

@@ -124,12 +124,18 @@
   function renderDark(state) {
     root.append(kicker("Station dark"));
     if (state.next_transition_at_utc_ms) {
+      const num = (state.transmission_id || "").replace(/^T/, "");
       root.append(
         el("h2", { class: "tx-h" }, "The next transmission is coming."),
         countdown("Submissions open", state.next_transition_at_utc_ms, boot),
         el("p", { class: "tx-sub" },
           "Artists: get a track ready. One upload window, one curated setlist, one shared broadcast. ",
-          el("b", {}, "The top third survive.")));
+          el("b", {}, "The top third survive.")),
+        num
+          ? el("p", { class: "tx-sub" },
+              el("a", { class: "tx-link", href: "/transmissions/" + num.padStart(3, "0") + ".ics" },
+                "+ Put the broadcast on your calendar"))
+          : null);
     } else {
       root.append(
         el("h2", { class: "tx-h" }, "Transmission 001 is being scheduled."),
@@ -154,13 +160,24 @@
     const durationInput = el("input", { type: "hidden", name: "duration_s", value: "" });
     const status = el("p", { class: "form-status", role: "status" });
     const fileNote = el("span", { class: "file-note" }, "mp3 · m4a · aac · wav · flac · ogg — 50 MB max");
+    const manualDuration = el("input", {
+      type: "text", placeholder: "track length, e.g. 3:42", maxlength: "8",
+      oninput: (e) => {
+        const m = /^(\d{1,2}):([0-5]\d)$/.exec(e.target.value.trim());
+        durationInput.value = m ? String(parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) : "";
+      },
+    });
+    const manualWrap = el("div", { class: "field", style: "display:none" },
+      el("span", { class: "field-label" }, "Duration (for linked tracks)"), manualDuration);
 
     const fileInput = el("input", {
-      type: "file", name: "file", required: "",
+      type: "file", name: "file",
       accept: ".mp3,.m4a,.aac,.wav,.flac,.ogg,audio/*",
       onchange: (e) => {
         const f = e.target.files[0];
         if (!f) return;
+        urlInput.value = "";
+        manualWrap.style.display = "none";
         fileNote.textContent = f.name + " · probing duration…";
         const probe = new Audio();
         probe.preload = "metadata";
@@ -179,13 +196,32 @@
       },
     });
 
+    // Submit-by-link: the Worker fetches the file server-side. The browser
+    // can't probe a cross-origin file's duration, so the artist types it.
+    const urlInput = el("input", {
+      type: "url", name: "track_url", maxlength: "300",
+      placeholder: "https://… direct link to the audio file",
+      oninput: (e) => {
+        const has = e.target.value.trim() !== "";
+        manualWrap.style.display = has ? "" : "none";
+        if (has) { fileInput.value = ""; durationInput.value = ""; manualDuration.dispatchEvent(new Event("input")); }
+      },
+    });
+
     const form = el("form", {
       class: "upload-form",
       onsubmit: async (e) => {
         e.preventDefault();
         const btn = form.querySelector("button[type=submit]");
+        const usingUrl = urlInput.value.trim() !== "";
+        if (!usingUrl && !(fileInput.files && fileInput.files[0])) {
+          status.textContent = "Attach an audio file or paste a direct link to one.";
+          return;
+        }
         if (!durationInput.value) {
-          status.textContent = "Still reading the file — give it a second, or pick a different file.";
+          status.textContent = usingUrl
+            ? "Enter the track length (like 3:42) so the broadcast clock works."
+            : "Still reading the file — give it a second, or pick a different file.";
           return;
         }
         btn.disabled = true;
@@ -197,6 +233,11 @@
           if (res.ok && data.ok) {
             form.replaceChildren(
               el("p", { class: "form-success" }, "⏺ " + data.message),
+              data.status_url
+                ? el("p", { class: "form-status" },
+                    "Your private status link — bookmark it: ",
+                    el("a", { class: "tx-link", href: data.status_url }, location.origin + data.status_url))
+                : null,
               el("p", { class: "form-status" }, "Submit another? Refresh the page."));
           } else {
             status.textContent = data.error || "Upload failed — try again.";
@@ -215,8 +256,20 @@
         field("Email (setlist notifications)", el("input", { type: "email", name: "email", required: "", maxlength: "254", autocomplete: "email" }))),
       el("div", { class: "form-row" },
         field("Track title", el("input", { type: "text", name: "title", required: "", maxlength: "120" })),
-        field("Audio file", fileInput, fileNote)),
+        field("Artist link (optional — shown on the setlist)", el("input", { type: "url", name: "artist_url", maxlength: "200", placeholder: "https://yourname.bandcamp.com" }))),
+      el("div", { class: "form-row" },
+        field("Audio file", fileInput, fileNote),
+        field("…or link the file directly", urlInput,
+          el("span", { class: "file-note" }, "your own hosting — we fetch and store a copy"))),
+      el("div", { class: "form-row" },
+        manualWrap,
+        field("Made by", el("select", { name: "ai_disclosure" },
+          el("option", { value: "human" }, "Humans — performed and produced"),
+          el("option", { value: "ai_assisted" }, "Humans, with AI assistance"),
+          el("option", { value: "fully_ai" }, "Fully AI-generated")))),
       durationInput,
+      // Honeypot — humans never see it, bots autofill it.
+      el("input", { type: "text", name: "website", value: "", tabindex: "-1", autocomplete: "off", "aria-hidden": "true", style: "position:absolute;left:-5000px;height:0;width:0;opacity:0" }),
       el("label", { class: "attest" },
         el("input", { type: "checkbox", name: "attestation", required: "" }),
         el("span", {}, "I own this recording or have the rights to submit it.")),
@@ -245,7 +298,10 @@
       countdown("Broadcast begins", state.next_transition_at_utc_ms, boot),
       el("p", { class: "tx-sub" },
         el("a", { class: "tx-link", href: "/transmissions/" + num.padStart(3, "0") },
-          "See the full setlist →")));
+          "See the full setlist →"),
+        "  ·  ",
+        el("a", { class: "tx-link", href: "/transmissions/" + num.padStart(3, "0") + ".ics" },
+          "+ Add to calendar")));
     try {
       const res = await fetch("/api/transmissions/current");
       const data = await res.json();
@@ -262,7 +318,11 @@
         el("span", { class: "who" }, el("b", {}, s.artist), " — " + s.title))));
   }
 
-  function renderLive(state, demoTrack) {
+  // The live player self-advances from the wall clock and the published
+  // timed setlist — iOS suspends WebSockets and timers when the screen
+  // locks, so the socket is only a listener counter and a drift check.
+  // The schedule, not the connection, is the source of truth.
+  async function renderLive(state, demoTrack) {
     const num = (state.transmission_id || "").replace(/^T/, "");
     const title = el("div", { class: "np-title" }, "Tuning…");
     const meta = el("div", { class: "np-meta" }, "");
@@ -271,6 +331,10 @@
     const audio = el("audio", { preload: "none" });
     const votedTracks = new Set();
     let currentTrack = null;
+    let timeline = null; // [{track_id,title,artist,position,total,start_ms,end_ms}]
+    let broadcastEnd = null;
+    let endHandled = false;
+    let liveTick = 0;
 
     const crushBtn = el("button", { class: "btn-crush big", disabled: "" }, "CRUSHED IT");
     crushBtn.addEventListener("click", async () => {
@@ -304,6 +368,7 @@
       audio.play().catch(() => {});
       tuneBtn.remove();
       crushBtn.disabled = !currentTrack;
+      syncToSchedule(true);
     });
 
     root.append(
@@ -312,11 +377,10 @@
       el("p", { class: "tx-sub" }, "Everyone is hearing this at the same moment. Tap CRUSHED IT on what deserves to survive — silence retires the rest."),
       player, audio);
 
-    function applyNowPlaying(msg) {
-      currentTrack = msg.track_id;
-      title.textContent = msg.artist + " — " + msg.title;
-      meta.textContent = "Track " + msg.position + " of " + msg.total;
-      listeners.textContent = (msg.listeners || 1) + " tuned in";
+    function applySlot(slot) {
+      currentTrack = slot.track_id;
+      title.textContent = slot.artist + " — " + slot.title;
+      meta.textContent = "Track " + slot.position + " of " + slot.total;
       if (!votedTracks.has(currentTrack)) {
         crushBtn.textContent = "CRUSHED IT";
         crushBtn.disabled = !!tuneBtn.isConnected;
@@ -324,17 +388,57 @@
         crushBtn.textContent = "CRUSHED ⏺";
         crushBtn.disabled = true;
       }
-      const src = "/audio/" + msg.track_id;
+      if ("mediaSession" in navigator) {
+        try {
+          navigator.mediaSession.metadata = new MediaMetadata({
+            title: slot.title,
+            artist: slot.artist,
+            album: "Crush Radio — Transmission " + num,
+          });
+        } catch {}
+      }
+      pollVotes(slot.track_id);
+    }
+
+    // force=true re-seeks even within the same slot (tune-in, wake-up).
+    function syncToSchedule(force) {
+      if (!timeline) return;
+      const t = now();
+      const slot = timeline.find((s) => t >= s.start_ms && t < s.end_ms);
+      if (!slot) {
+        // Past the last track but the broadcast window is still open = dead
+        // air (setlist music < 2h). Show a wrap-up card and wait for the
+        // window to actually close — do NOT boot() in a tight loop (that was
+        // every listener hammering /api/state at end of every broadcast).
+        if (t >= timeline[timeline.length - 1].end_ms && !endHandled) {
+          endHandled = true;
+          clearInterval(countdownTimer);
+          clearInterval(pollTimer);
+          try { audio.pause(); } catch {}
+          currentTrack = null;
+          crushBtn.disabled = true;
+          title.textContent = "That was the last track.";
+          meta.textContent = "Results post when the window closes.";
+          setTimeout(boot, Math.max(0, (broadcastEnd || t) - now()) + 1500);
+        }
+        return;
+      }
+      const slotChanged = slot.track_id !== currentTrack;
+      if (slotChanged) applySlot(slot);
+      const src = "/audio/" + slot.track_id;
       if (!audio.src.endsWith(src)) {
         audio.src = src;
-        const sync = () => {
-          audio.currentTime = Math.max(0, (now() - msg.started_at_ms) / 1000);
-          audio.removeEventListener("loadedmetadata", sync);
+        const seek = () => {
+          audio.currentTime = Math.max(0, (now() - slot.start_ms) / 1000);
+          audio.removeEventListener("loadedmetadata", seek);
         };
-        audio.addEventListener("loadedmetadata", sync);
+        audio.addEventListener("loadedmetadata", seek);
+        if (!tuneBtn.isConnected) audio.play().catch(() => {});
+      } else if (force || Math.abs(audio.currentTime - (t - slot.start_ms) / 1000) > 3) {
+        // Drifted (tab slept, buffer stall) — snap back to the broadcast.
+        audio.currentTime = Math.max(0, (t - slot.start_ms) / 1000);
         if (!tuneBtn.isConnected) audio.play().catch(() => {});
       }
-      pollVotes(msg.track_id);
     }
 
     function pollVotes(trackId) {
@@ -351,22 +455,78 @@
     }
 
     if (demoTrack) {
-      applyNowPlaying(demoTrack);
+      timeline = [{
+        track_id: demoTrack.track_id, title: demoTrack.title, artist: demoTrack.artist,
+        position: demoTrack.position, total: demoTrack.total,
+        start_ms: demoTrack.started_at_ms, end_ms: demoTrack.started_at_ms + demoTrack.duration_s * 1000,
+      }];
+      applySlot(timeline[0]);
+      listeners.textContent = (demoTrack.listeners || 1) + " tuned in";
       tuneBtn.disabled = true;
       crushBtn.disabled = true;
       return;
     }
 
+    // Build the timed setlist from the published schedule.
+    if (!(await rebuildTimeline())) {
+      title.textContent = "Setlist unavailable — refresh to retry.";
+      return;
+    }
+
+    // Re-fetch the schedule and rebuild if the setlist changed underneath us
+    // (an emergency removal mid-broadcast). Returns false if nothing usable.
+    async function rebuildTimeline() {
+      try {
+        const res = await fetch("/api/transmissions/current", { cache: "no-store" });
+        const data = await res.json();
+        const setlist = data.setlist || [];
+        if (!setlist.length || !data.transmission) return false;
+        broadcastEnd = data.transmission.broadcast_end_at;
+        const sig = setlist.map((s) => s.track_id).join(",");
+        const oldSig = timeline ? timeline.map((s) => s.track_id).join(",") : null;
+        if (sig === oldSig) return true;
+        let cursor = data.transmission.broadcast_start_at;
+        timeline = setlist.map((s) => {
+          const start_ms = cursor;
+          const end_ms = Math.min(cursor + s.duration_s * 1000, broadcastEnd);
+          cursor = end_ms;
+          return { ...s, total: setlist.length, start_ms, end_ms };
+        });
+        endHandled = false;
+        return true;
+      } catch {
+        return !!(timeline && timeline.length);
+      }
+    }
+
+    const liveTimer = setInterval(() => {
+      syncToSchedule(false);
+      if (++liveTick % 45 === 0) rebuildTimeline().then((ok) => ok && syncToSchedule(true));
+    }, 1000);
+    countdownTimer = liveTimer; // teardown handle (teardown clears countdownTimer)
+    syncToSchedule(false);
+
+    // Self-removing wake-up resync, bound to THIS player node (a stale
+    // listener from a re-render would otherwise never detach).
+    const playerNode = player;
+    document.addEventListener("visibilitychange", function onVis() {
+      if (!playerNode.isConnected) {
+        document.removeEventListener("visibilitychange", onVis);
+        return;
+      }
+      if (!document.hidden) syncToSchedule(true);
+    });
+
+    // The socket is presence + a second opinion, not the clock.
     const proto = location.protocol === "https:" ? "wss://" : "ws://";
-    ws = new WebSocket(proto + location.host + "/ws");
-    ws.onmessage = (e) => {
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-      if (msg.type === "now_playing") applyNowPlaying(msg);
-      else if (msg.type === "off_air") boot();
-      if (msg.listeners != null) listeners.textContent = msg.listeners + " tuned in";
-    };
-    ws.onclose = () => { setTimeout(() => { if (root.querySelector(".player")) boot(); }, 5000); };
+    try {
+      ws = new WebSocket(proto + location.host + "/ws");
+      ws.onmessage = (e) => {
+        let msg;
+        try { msg = JSON.parse(e.data); } catch { return; }
+        if (msg.listeners != null) listeners.textContent = msg.listeners + " tuned in";
+      };
+    } catch {}
   }
 
   async function renderResults(state, demoData) {
@@ -462,7 +622,11 @@
           });
           return el("li", { class: "row hall-row" },
             btn,
-            el("span", { class: "row-msg" }, el("b", {}, h.artist), " — " + h.title),
+            el("span", { class: "row-msg" },
+              el("b", {}, h.artist), " — " + h.title,
+              h.artist_url
+                ? el("a", { href: h.artist_url, target: "_blank", rel: "noopener noreferrer nofollow", style: "margin-left:10px;font-size:11px" }, "artist↗")
+                : null),
             el("span", { class: "row-meta" }, h.transmission_id + " · " + h.crushes + " crushes"));
         })),
       audio);

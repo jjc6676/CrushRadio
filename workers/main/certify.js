@@ -1,9 +1,11 @@
 // Crush Radio — Scheduled jobs
 // One cron runs every minute (UTC). Transitions themselves are derived
-// from timestamps, so the cron only performs the two actions that need
-// an actor:
-//   live window  → make sure the Rotator is conducting (idempotent kick)
-//   after end    → certify results once (eligibility, crush rate, survival)
+// from timestamps, so the cron only performs the actions that need an
+// actor:
+//   setlist publish → auto-lock the selected tracks if the owner hasn't
+//   live window     → make sure the Rotator is conducting (idempotent kick)
+//   after end       → certify results once (eligibility, crush rate, survival)
+//   every tick      → flush the notification outbox when Resend is configured
 
 import {
   deriveState,
@@ -11,22 +13,42 @@ import {
   certifyResults,
   SIGNAL_FLOOR,
 } from "./state.js";
-import { getTransmissions, hydrateSetlist } from "./api.js";
+import { getTransmissions, hydrateSetlist, lockSetlist } from "./api.js";
+import {
+  composeResult,
+  composeResubmitInvite,
+  outboxStatements,
+  flushOutbox,
+} from "./notify.js";
 
 export async function runScheduled(env, now = Date.now()) {
   const rows = await getTransmissions(env);
   const t = pickActiveTransmission(rows, now);
-  if (!t) return;
+  if (t) {
+    const { state } = deriveState(t, now);
 
-  const { state } = deriveState(t, now);
+    // The curation contract: the setlist locks at publish time whether or
+    // not the owner clicked the button. lockSetlist no-ops when already
+    // locked and errors harmlessly when nothing is selected.
+    if (
+      now >= t.setlist_publish_at &&
+      now < t.broadcast_start_at &&
+      !t.setlist_json
+    ) {
+      await lockSetlist(env, t.id, now).catch(() => {});
+    }
 
-  if (state === "live") {
-    await ensureRotatorConducting(env, t);
+    if (state === "live") {
+      await ensureRotatorConducting(env, t);
+    }
+
+    if (now >= t.broadcast_end_at && t.setlist_json) {
+      await certifyTransmission(env, t, now);
+    }
   }
 
-  if (now >= t.broadcast_end_at && t.setlist_json) {
-    await certifyTransmission(env, t, now);
-  }
+  // Deliver whatever the outbox holds — no-op without config:resend_key.
+  await flushOutbox(env).catch(() => {});
 }
 
 // Idempotent: the Rotator no-ops if it is already mid-show for this
@@ -69,11 +91,20 @@ async function certifyTransmission(env, t, now) {
 
     const stats = [];
     for (const slot of setlist) {
+      // Crushes count only votes from a fingerprint that ALSO qualified as a
+      // listener (≥ minListenSeconds). Rotating the User-Agent mints fresh
+      // fingerprints, but those have no qualifying listen, so they can't
+      // stuff the survival rank — and crush_rate can never exceed 1.
       const crushesRow = await env.DB.prepare(
-        `SELECT COUNT(DISTINCT fingerprint) AS n FROM votes
-         WHERE track_id = ? AND vote = 'crushed_it' AND voted_at BETWEEN ? AND ?`
+        `SELECT COUNT(DISTINCT v.fingerprint) AS n FROM votes v
+         WHERE v.track_id = ? AND v.vote = 'crushed_it' AND v.voted_at BETWEEN ? AND ?
+           AND EXISTS (
+             SELECT 1 FROM track_listens tl
+             WHERE tl.transmission_id = ? AND tl.track_id = v.track_id
+               AND tl.fingerprint = v.fingerprint AND tl.listen_seconds >= ?
+           )`
       )
-        .bind(slot.track_id, windowStart, windowEnd)
+        .bind(slot.track_id, windowStart, windowEnd, t.id, SIGNAL_FLOOR.minListenSeconds)
         .first();
       const listenersRow = await env.DB.prepare(
         `SELECT COUNT(*) AS n FROM track_listens
@@ -98,6 +129,47 @@ async function certifyTransmission(env, t, now) {
 
     const verdicts = certifyResults(stats, SIGNAL_FLOOR);
 
+    // Tracks that will expire this cert: held, already rolled once, not yet
+    // processed for this transmission. Gather with the artist join now so
+    // the resubmit-invite email goes in the same atomic batch.
+    const { results: expiring } = await env.DB.prepare(
+      `SELECT tr.id, tr.title, tr.access_token, a.name AS artist_name, a.slug AS artist_slug, a.email
+       FROM tracks tr JOIN artists a ON a.id = tr.artist_id
+       WHERE tr.track_status = 'held' AND tr.uploaded_at < ?
+         AND tr.rollover_count >= 1
+         AND (tr.last_rollover_tx IS NULL OR tr.last_rollover_tx != ?)`
+    )
+      .bind(t.submission_close_at, t.id)
+      .all();
+
+    // Result emails (release immediately) + resubmit invites, composed
+    // before the commit so a crash can't lose them.
+    const ids = verdicts.map((v) => v.track_id);
+    const byId = new Map();
+    if (ids.length) {
+      const ph = ids.map(() => "?").join(",");
+      const { results } = await env.DB.prepare(
+        `SELECT tr.id, tr.title, tr.access_token, a.name AS artist_name, a.slug AS artist_slug, a.email
+         FROM tracks tr JOIN artists a ON a.id = tr.artist_id WHERE tr.id IN (${ph})`
+      )
+        .bind(...ids)
+        .all();
+      for (const r of results || []) byId.set(r.id, r);
+    }
+
+    const notifRows = [];
+    for (const v of verdicts) {
+      const track = byId.get(v.track_id);
+      if (!track || !track.email) continue;
+      const msg = composeResult(track, t, v);
+      notifRows.push({ ...msg, transmission_id: t.id, track_id: track.id, email: track.email, release_at: now });
+    }
+    for (const track of expiring || []) {
+      if (!track.email) continue;
+      const msg = composeResubmitInvite(track, t);
+      notifRows.push({ ...msg, transmission_id: t.id, track_id: track.id, email: track.email, release_at: now });
+    }
+
     const writes = [];
     const insert = env.DB.prepare(
       `INSERT OR IGNORE INTO transmission_results
@@ -113,18 +185,32 @@ async function certifyTransmission(env, t, now) {
       );
       writes.push(flip.bind(v.status, v.status, v.track_id));
     }
-    // Held tracks submitted for this window roll over once; after one
-    // rollover the artist must explicitly resubmit (T001: manual email).
+    // Roll-once-then-expire, idempotent via last_rollover_tx so overlapping
+    // cron ticks can't double-process. Expire runs FIRST (catches the
+    // already-rolled) so the roll step below can't bump them into it.
     writes.push(
       env.DB
         .prepare(
-          `UPDATE tracks SET rollover_count = rollover_count + 1
-           WHERE track_status = 'held' AND uploaded_at < ?`
+          `UPDATE tracks SET track_status = 'expired', last_rollover_tx = ?
+           WHERE track_status = 'held' AND uploaded_at < ? AND rollover_count >= 1
+             AND (last_rollover_tx IS NULL OR last_rollover_tx != ?)`
         )
-        .bind(t.submission_close_at)
+        .bind(t.id, t.submission_close_at, t.id)
     );
+    writes.push(
+      env.DB
+        .prepare(
+          `UPDATE tracks SET rollover_count = rollover_count + 1, last_rollover_tx = ?
+           WHERE track_status = 'held' AND uploaded_at < ? AND rollover_count = 0
+             AND (last_rollover_tx IS NULL OR last_rollover_tx != ?)`
+        )
+        .bind(t.id, t.submission_close_at, t.id)
+    );
+    writes.push(...outboxStatements(env, notifRows));
     await env.DB.batch(writes);
   } catch {
     // Certification re-runs on the next cron tick; never crash the schedule.
+    // INSERT OR IGNORE on results + last_rollover_tx guards make a re-run
+    // idempotent, so a partial failure heals on the next tick.
   }
 }

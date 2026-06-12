@@ -21,6 +21,19 @@ CREATE TABLE IF NOT EXISTS tracks (
   -- Transmission lifecycle: held | selected | crushed | retired | unjudged
   track_status TEXT NOT NULL DEFAULT 'held',
   rollover_count INTEGER NOT NULL DEFAULT 0,
+  -- Private token for the artist's status page (/track/:id/:token)
+  access_token TEXT,
+  -- Optional outbound artist link shown on setlist/results/hall
+  artist_url TEXT,
+  -- Owner-set provisional setlist order, used when the setlist locks
+  curation_position INTEGER,
+  -- DDEX-style AI provenance disclosure: human | ai_assisted | fully_ai
+  ai_disclosure TEXT NOT NULL DEFAULT 'human',
+  -- Submission window this track belongs to (transmission id at upload)
+  submission_window TEXT,
+  -- Last transmission whose certification processed this held track's
+  -- rollover — guards against double-increment / double-expire on re-run
+  last_rollover_tx TEXT,
   play_count INTEGER NOT NULL DEFAULT 0,
   crushed_it INTEGER NOT NULL DEFAULT 0,
   next_count INTEGER NOT NULL DEFAULT 0,
@@ -81,6 +94,25 @@ CREATE TABLE IF NOT EXISTS transmission_results (
   PRIMARY KEY (transmission_id, track_id)
 );
 
+-- Composed artist emails. Written idempotently at setlist lock and results
+-- certification; delivered by Resend when config:resend_key exists in KV,
+-- otherwise surfaced in /studio as one-click mailto links.
+CREATE TABLE IF NOT EXISTS notifications (
+  id              TEXT PRIMARY KEY,
+  kind            TEXT NOT NULL,      -- artist_selected | artist_held | results_published | artist_resubmit_invite
+  transmission_id TEXT NOT NULL,
+  track_id        TEXT NOT NULL,
+  email           TEXT NOT NULL,
+  subject         TEXT NOT NULL,
+  body            TEXT NOT NULL,
+  -- Earliest delivery time (UTC ms). Selected/held hold until the setlist
+  -- publishes; results release immediately. 0 = deliverable now.
+  release_at      INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  sent_at         INTEGER,
+  channel         TEXT                -- resend | manual
+);
+
 -- One row per (transmission, track, listener) where the listener was connected
 -- for at least the signal-floor minListenSeconds while the track aired.
 -- Written by the Rotator at track advance and on socket close.
@@ -101,6 +133,15 @@ CREATE INDEX IF NOT EXISTS idx_tracks_artist_last_played ON tracks(last_artist_p
 CREATE INDEX IF NOT EXISTS idx_plays_track_started ON plays(track_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_votes_track ON votes(track_id);
 CREATE INDEX IF NOT EXISTS idx_votes_fingerprint ON votes(fingerprint, track_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_one_per_fingerprint ON votes(track_id, fingerprint);
 CREATE INDEX IF NOT EXISTS idx_flags_track ON flags(track_id, flagged_at);
 CREATE INDEX IF NOT EXISTS idx_transmissions_open ON transmissions(submission_open_at);
 CREATE INDEX IF NOT EXISTS idx_tx_results_status ON transmission_results(status, crush_rate);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedup
+  ON notifications(kind, transmission_id, track_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_pending
+  ON notifications(sent_at, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_release
+  ON notifications(sent_at, release_at, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tracks_one_per_window
+  ON tracks(artist_id, submission_window);

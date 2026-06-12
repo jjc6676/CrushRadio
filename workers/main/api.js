@@ -11,6 +11,7 @@ import {
   setlistVisible,
   MAX_COUNTED_SECONDS,
 } from "./state.js";
+import { composeSelected, composeHeld, outboxStatements } from "./notify.js";
 
 const ATTESTATION_TEXT =
   "I own this recording or have the rights to submit it.";
@@ -19,9 +20,13 @@ const UPLOAD_LIMITS = {
   maxBytes: 50 * 1024 * 1024, // 50 MB
   minDurationS: 30,
   maxDurationS: 900, // 15 min hard cap at upload; fades at 4:00 on air
-  perHour: 3, // uploads per fingerprint per hour
+  perHour: 3, // upload attempts per fingerprint per hour
+  perArtistPerWindow: 1, // one track per artist per window — make it your best
+  windowCapDefault: 100, // valid submissions per window (KV config:max_submissions_per_window)
   extensions: ["mp3", "m4a", "aac", "wav", "flac", "ogg"],
 };
+
+const AI_DISCLOSURES = ["human", "ai_assisted", "fully_ai"];
 
 const FLAG_LIMIT_PER_HOUR = 5;
 
@@ -44,6 +49,40 @@ export async function fingerprint(request) {
   return [...new Uint8Array(digest)]
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
+}
+
+// Owner gate for /studio and the studio API: token lives in KV
+// (config:owner_token), supplied via Authorization: Bearer or ?key=.
+export async function requireOwner(request, env) {
+  const url = new URL(request.url);
+  const supplied =
+    (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "") ||
+    url.searchParams.get("key") ||
+    "";
+  if (!supplied) return false;
+  const expected = await env.KV.get("config:owner_token");
+  if (!expected) return false;
+  const a = new TextEncoder().encode(supplied);
+  const b = new TextEncoder().encode(expected);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
+}
+
+// Magic-byte sniff — the extension allowlist says what the artist CLAIMS,
+// this says what the bytes ARE. Returns a format family or null.
+export function sniffAudio(bytes) {
+  if (!bytes || bytes.length < 12) return null;
+  const ascii = (off, len) =>
+    String.fromCharCode(...bytes.slice(off, off + len));
+  if (ascii(0, 3) === "ID3") return "mp3";
+  if (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return "mp3"; // MPEG/ADTS sync
+  if (ascii(0, 4) === "RIFF" && ascii(8, 4) === "WAVE") return "wav";
+  if (ascii(0, 4) === "fLaC") return "flac";
+  if (ascii(0, 4) === "OggS") return "ogg";
+  if (ascii(4, 4) === "ftyp") return "m4a";
+  return null;
 }
 
 // The transmissions table may not exist yet on a database that hasn't run
@@ -74,7 +113,7 @@ export async function hydrateSetlist(env, t) {
   const ids = entries.map((e) => e.track_id);
   const placeholders = ids.map(() => "?").join(",");
   const { results } = await env.DB.prepare(
-    `SELECT t.id, t.title, t.duration_s, a.name AS artist, a.slug
+    `SELECT t.id, t.title, t.duration_s, t.artist_url, a.name AS artist, a.slug
      FROM tracks t JOIN artists a ON a.id = t.artist_id
      WHERE t.id IN (${placeholders})`
   )
@@ -91,6 +130,7 @@ export async function hydrateSetlist(env, t) {
         title: row.title,
         artist: row.artist,
         slug: row.slug,
+        artist_url: row.artist_url || null,
         position: e.position || i + 1,
         duration_s: row.duration_s,
         counted_s: Math.min(row.duration_s, MAX_COUNTED_SECONDS),
@@ -116,6 +156,92 @@ function slugify(name) {
       .replace(/^-+|-+$/g, "")
       .slice(0, 48) || "artist"
   );
+}
+
+// --- Setlist locking (shared by /studio and the auto-lock cron) ---
+
+// Order: owner-set curation_position ascending (unset goes last), then
+// upload order. Caps at 25 per the spec.
+export function buildSetlistOrder(tracks) {
+  return tracks
+    .slice()
+    .sort((a, b) => {
+      const pa = a.curation_position == null ? Infinity : a.curation_position;
+      const pb = b.curation_position == null ? Infinity : b.curation_position;
+      return pa - pb || a.uploaded_at - b.uploaded_at;
+    })
+    .slice(0, 25)
+    .map((t, i) => ({ position: i + 1, track_id: t.id }));
+}
+
+// Idempotent: no-ops if the setlist is already locked. In one atomic batch
+// it writes setlist_json, flips cap-overflow back to held, and queues the
+// selected/held notifications — composed here (not after the commit) so a
+// crash can't lock the setlist yet lose every artist's email. The emails
+// carry release_at = setlist_publish_at, so they hold until the public
+// reveal even if the owner locks days early.
+export async function lockSetlist(env, transmissionId, now = Date.now()) {
+  const t = await env.DB.prepare("SELECT * FROM transmissions WHERE id = ?")
+    .bind(transmissionId)
+    .first();
+  if (!t) return { error: "No such transmission." };
+  if (t.setlist_json) return { ok: true, already_locked: true };
+  if (now >= t.broadcast_start_at) return { error: "Broadcast already started." };
+
+  const { results: selected } = await env.DB.prepare(
+    `SELECT tr.id, tr.uploaded_at, tr.curation_position, tr.title, tr.access_token,
+            a.name AS artist_name, a.slug AS artist_slug, a.email
+     FROM tracks tr JOIN artists a ON a.id = tr.artist_id
+     WHERE tr.track_status = 'selected'`
+  ).all();
+  if (!selected || selected.length === 0) {
+    return { error: "Nothing selected — pick tracks before locking." };
+  }
+
+  const setlist = buildSetlistOrder(selected);
+  const chosen = new Set(setlist.map((s) => s.track_id));
+  const overflow = selected.filter((s) => !chosen.has(s.id));
+  const selById = new Map(selected.map((s) => [s.id, s]));
+  const tFull = { ...t, setlist_json: JSON.stringify(setlist) };
+  const release = t.setlist_publish_at;
+
+  // Pre-existing held tracks from this window (overflow is added below).
+  const { results: held } = await env.DB.prepare(
+    `SELECT tr.id, tr.title, tr.access_token, a.name AS artist_name, a.slug AS artist_slug, a.email
+     FROM tracks tr JOIN artists a ON a.id = tr.artist_id
+     WHERE tr.track_status = 'held' AND tr.uploaded_at >= ? AND tr.uploaded_at < ?`
+  )
+    .bind(t.submission_open_at, t.submission_close_at)
+    .all();
+
+  const notifRows = [];
+  for (const s of setlist) {
+    const track = selById.get(s.track_id);
+    if (track && track.email) {
+      const msg = composeSelected(track, tFull, s.position);
+      notifRows.push({ ...msg, transmission_id: t.id, track_id: track.id, email: track.email, release_at: release });
+    }
+  }
+  for (const track of [...(held || []), ...overflow]) {
+    if (!track.email) continue;
+    const msg = composeHeld(track, tFull);
+    notifRows.push({ ...msg, transmission_id: t.id, track_id: track.id, email: track.email, release_at: release });
+  }
+
+  const writes = [
+    env.DB
+      .prepare("UPDATE transmissions SET setlist_json = ?, updated_at = ? WHERE id = ?")
+      .bind(JSON.stringify(setlist), now, t.id),
+  ];
+  for (const o of overflow) {
+    writes.push(
+      env.DB.prepare("UPDATE tracks SET track_status = 'held' WHERE id = ?").bind(o.id)
+    );
+  }
+  writes.push(...outboxStatements(env, notifRows));
+  await env.DB.batch(writes);
+
+  return { ok: true, setlist };
 }
 
 // --- GET /api/state ---
@@ -144,6 +270,113 @@ export async function handleState(env, now = Date.now()) {
 }
 
 // --- POST /api/upload ---
+// Two ingestion paths, one validation pipeline: a direct file upload, or
+// submit-by-URL (the Worker fetches the artist's own hosted file). Either
+// way the bytes get magic-sniffed before they enter the pool.
+
+// SSRF guard: reject hosts that are obviously internal. Workers can't
+// resolve DNS pre-connect, so this blocks literal private/loopback/
+// link-local IPs and internal-looking names; combined with https-only,
+// manual-redirect revalidation, and the fact that this Worker exposes no
+// internal HTTP services or metadata endpoint, it's adequate at this scale.
+export function isSafePublicHost(hostname) {
+  const h = (hostname || "").toLowerCase().replace(/^\[|\]$/g, "");
+  if (!h) return false;
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal") || h.endsWith(".local")) return false;
+  // IPv6 loopback / unique-local / link-local
+  if (h === "::1" || h.startsWith("fc") || h.startsWith("fd") || h.startsWith("fe80")) return false;
+  // IPv4 literal?
+  const m = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (m) {
+    const [a, b] = [parseInt(m[1], 10), parseInt(m[2], 10)];
+    if (a === 10 || a === 127 || a === 0) return false;
+    if (a === 169 && b === 254) return false; // link-local incl. cloud metadata
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && b === 168) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false; // CGNAT
+    if (a >= 224) return false; // multicast / reserved
+  }
+  return true;
+}
+
+export function validTrackUrl(raw) {
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "https:") return null;
+  if (!isSafePublicHost(parsed.hostname)) return null;
+  return parsed;
+}
+
+async function fetchTrackByUrl(trackUrl) {
+  // Generic failure string — never reflect the upstream status/reachability
+  // back to the caller (no SSRF status oracle).
+  const fail = { error: "Couldn't fetch a usable audio file from that link." };
+
+  let parsed = validTrackUrl(trackUrl);
+  if (!parsed) return { error: "Track links must be a public https:// URL to the audio file." };
+
+  // Follow redirects manually, re-validating each hop's host.
+  let res;
+  try {
+    let url = parsed.toString();
+    for (let hop = 0; hop < 4; hop++) {
+      res = await fetch(url, {
+        method: "GET",
+        redirect: "manual",
+        headers: { "User-Agent": "crushradio-ingest", Accept: "audio/*,*/*" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return fail;
+        const next = validTrackUrl(new URL(loc, url).toString());
+        if (!next) return fail;
+        url = next.toString();
+        continue;
+      }
+      break;
+    }
+  } catch {
+    return fail;
+  }
+  if (!res || !res.ok || !res.body) return fail;
+
+  const declared = parseInt(res.headers.get("content-length") || "0", 10);
+  if (declared > UPLOAD_LIMITS.maxBytes) return { error: "File too large. 50 MB max." };
+
+  // Stream with a hard cap — content-length can lie or be absent.
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > UPLOAD_LIMITS.maxBytes) {
+      try { reader.cancel(); } catch {}
+      return { error: "File too large. 50 MB max." };
+    }
+    chunks.push(value);
+  }
+  if (total < 1024) return fail;
+
+  const bytes = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    bytes.set(c, off);
+    off += c.byteLength;
+  }
+  const urlExt = (parsed.pathname.split(".").pop() || "").toLowerCase();
+  return {
+    bytes,
+    contentType: res.headers.get("content-type") || "application/octet-stream",
+    ext: UPLOAD_LIMITS.extensions.includes(urlExt) ? urlExt : null,
+  };
+}
 
 export async function handleUpload(request, env) {
   const now = Date.now();
@@ -171,11 +404,24 @@ export async function handleUpload(request, env) {
     return json({ error: "Expected multipart/form-data." }, 400);
   }
 
+  // Honeypot: real users never see this field. Bots that fill it get a
+  // convincing yes and nothing else.
+  if (String(form.get("website") || "").trim() !== "") {
+    return json({
+      ok: true,
+      track_id: crypto.randomUUID(),
+      message: "Track received.",
+    });
+  }
+
   const artistName = String(form.get("artist_name") || "").trim();
   const email = String(form.get("email") || "").trim();
   const title = String(form.get("title") || "").trim();
   const durationS = parseInt(form.get("duration_s"), 10);
   const attestation = String(form.get("attestation") || "").toLowerCase();
+  const artistUrl = String(form.get("artist_url") || "").trim();
+  const trackUrl = String(form.get("track_url") || "").trim();
+  const aiDisclosure = String(form.get("ai_disclosure") || "human").trim();
   const file = form.get("file");
 
   if (!["on", "true", "yes", "1"].includes(attestation)) {
@@ -194,15 +440,20 @@ export async function handleUpload(request, env) {
   if (!Number.isFinite(durationS) || durationS < UPLOAD_LIMITS.minDurationS || durationS > UPLOAD_LIMITS.maxDurationS) {
     return json({ error: "Track must be between 30 seconds and 15 minutes." }, 400);
   }
-  if (!(file instanceof File) || file.size === 0) {
-    return json({ error: "Audio file required." }, 400);
+  if (artistUrl && !/^https?:\/\/\S{4,200}$/.test(artistUrl)) {
+    return json({ error: "Artist link must be a normal http(s) URL." }, 400);
   }
-  if (file.size > UPLOAD_LIMITS.maxBytes) {
-    return json({ error: "File too large. 50 MB max." }, 413);
+  if (!AI_DISCLOSURES.includes(aiDisclosure)) {
+    return json({ error: "AI disclosure must be one of: human, ai_assisted, fully_ai." }, 400);
   }
-  const ext = (file.name.split(".").pop() || "").toLowerCase();
-  if (!UPLOAD_LIMITS.extensions.includes(ext)) {
-    return json({ error: `Unsupported format. Use: ${UPLOAD_LIMITS.extensions.join(", ")}.` }, 400);
+
+  const hasFile = file instanceof File && file.size > 0;
+  if (!hasFile && !trackUrl) {
+    return json({ error: "Attach an audio file or paste a direct link to one." }, 400);
+  }
+  // Validate the link before any network call (no fetch on a bad/internal host).
+  if (!hasFile && !validTrackUrl(trackUrl)) {
+    return json({ error: "Track links must be a public https:// URL to the audio file." }, 400);
   }
 
   const fp = await fingerprint(request);
@@ -210,10 +461,82 @@ export async function handleUpload(request, env) {
     return json({ error: "Upload limit reached — try again in an hour." }, 429);
   }
 
-  // Find or create the artist (keyed by email).
-  let artist = await env.DB.prepare("SELECT * FROM artists WHERE email = ?")
+  // Intake caps — the listen-everything promise only stays true if the
+  // pool stays the size one human can actually hear before Friday noon.
+  // Checked BEFORE the (possibly remote) fetch to bound amplification; the
+  // per-artist cap is additionally enforced by a UNIQUE(artist_id,
+  // submission_window) index at insert, so parallel uploads can't slip past.
+  const windowId = station.transmission_id;
+  const windowCap = parseInt(
+    (await env.KV.get("config:max_submissions_per_window")) || "",
+    10
+  ) || UPLOAD_LIMITS.windowCapDefault;
+  const poolRow = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM tracks WHERE submission_window = ?"
+  )
+    .bind(windowId)
+    .first();
+  if (poolRow && poolRow.n >= windowCap) {
+    return json(
+      {
+        error: `This window is full (${windowCap} tracks — every one gets a real listen). Submissions reopen Monday noon CT.`,
+      },
+      409
+    );
+  }
+  const existingArtist = await env.DB.prepare("SELECT id FROM artists WHERE email = ?")
     .bind(email)
     .first();
+  if (existingArtist) {
+    const mine = await env.DB.prepare(
+      "SELECT 1 FROM tracks WHERE artist_id = ? AND submission_window = ? LIMIT 1"
+    )
+      .bind(existingArtist.id, windowId)
+      .first();
+    if (mine) {
+      return json(
+        { error: "One track per artist per window — make it your best. The next window opens Monday noon CT." },
+        409
+      );
+    }
+  }
+
+  // Resolve the audio bytes from whichever path the artist used.
+  let audio; // { body, size, contentType, ext, head: Uint8Array }
+  if (hasFile) {
+    if (file.size > UPLOAD_LIMITS.maxBytes) {
+      return json({ error: "File too large. 50 MB max." }, 413);
+    }
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (!UPLOAD_LIMITS.extensions.includes(ext)) {
+      return json({ error: `Unsupported format. Use: ${UPLOAD_LIMITS.extensions.join(", ")}.` }, 400);
+    }
+    const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    audio = {
+      body: file.stream(),
+      contentType: file.type || "application/octet-stream",
+      ext,
+      head,
+    };
+  } else {
+    const fetched = await fetchTrackByUrl(trackUrl);
+    if (fetched.error) return json({ error: fetched.error }, 400);
+    audio = {
+      body: fetched.bytes,
+      contentType: fetched.contentType,
+      ext: fetched.ext, // may be null — fall back to the sniffed format
+      head: fetched.bytes.slice(0, 16),
+    };
+  }
+
+  const sniffed = sniffAudio(audio.head);
+  if (!sniffed) {
+    return json({ error: "That doesn't look like an audio file (mp3, m4a, aac, wav, flac, ogg)." }, 400);
+  }
+  const ext = audio.ext || sniffed;
+
+  // Find or create the artist (keyed by email).
+  let artist = existingArtist;
   if (!artist) {
     const id = crypto.randomUUID();
     let slug = slugify(artistName);
@@ -228,22 +551,40 @@ export async function handleUpload(request, env) {
   }
 
   const trackId = crypto.randomUUID();
+  const accessToken = [...crypto.getRandomValues(new Uint8Array(16))]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
   const key = `tracks/${trackId}.${ext}`;
-  await env.AUDIO.put(key, file.stream(), {
-    httpMetadata: { contentType: file.type || "application/octet-stream" },
+  await env.AUDIO.put(key, audio.body, {
+    httpMetadata: { contentType: audio.contentType },
   });
 
-  await env.DB.prepare(
-    `INSERT INTO tracks
-     (id, artist_id, title, filename, duration_s, status, track_status, uploaded_at)
-     VALUES (?, ?, ?, ?, ?, 'held', 'held', ?)`
-  )
-    .bind(trackId, artist.id, title, key, durationS, now)
-    .run();
+  try {
+    await env.DB.prepare(
+      `INSERT INTO tracks
+       (id, artist_id, title, filename, duration_s, status, track_status,
+        access_token, artist_url, ai_disclosure, submission_window, uploaded_at)
+       VALUES (?, ?, ?, ?, ?, 'held', 'held', ?, ?, ?, ?, ?)`
+    )
+      .bind(trackId, artist.id, title, key, durationS, accessToken, artistUrl || null, aiDisclosure, windowId, now)
+      .run();
+  } catch (e) {
+    // Loser of a one-per-window race (UNIQUE artist_id+submission_window).
+    // Clean up the orphaned R2 object and report the cap.
+    try { await env.AUDIO.delete(key); } catch {}
+    if (String(e).includes("UNIQUE") || String(e).includes("constraint")) {
+      return json(
+        { error: "One track per artist per window — make it your best. The next window opens Monday noon CT." },
+        409
+      );
+    }
+    throw e;
+  }
 
   return json({
     ok: true,
     track_id: trackId,
+    status_url: `/track/${trackId}/${accessToken}`,
     message: `"${title}" is in the pool for ${station.transmission_id}. Setlist drops Friday noon CT — watch your inbox.`,
   });
 }
@@ -281,9 +622,13 @@ export async function handleVote(request, env) {
   }
   await env.KV.put(dedupKey, "1", { expirationTtl: 7 * 24 * 3600 });
 
+  // INSERT OR IGNORE against UNIQUE(track_id, fingerprint): the live
+  // crushed_it counter is best-effort display; survival math cross-checks
+  // votes against qualified listens at certification (UA rotation makes new
+  // fingerprints, which have no listen, so they don't count toward survival).
   await env.DB.batch([
     env.DB
-      .prepare("INSERT INTO votes (track_id, vote, fingerprint, voted_at) VALUES (?, 'crushed_it', ?, ?)")
+      .prepare("INSERT OR IGNORE INTO votes (track_id, vote, fingerprint, voted_at) VALUES (?, 'crushed_it', ?, ?)")
       .bind(trackId, fp, now),
     env.DB.prepare("UPDATE tracks SET crushed_it = crushed_it + 1 WHERE id = ?").bind(trackId),
   ]);
@@ -393,7 +738,7 @@ export async function handleHall(env) {
   try {
     const { results } = await env.DB.prepare(
       `SELECT r.transmission_id, r.track_id, r.rank, r.crushes, r.crush_rate,
-              t.title, t.duration_s, a.name AS artist, a.slug
+              t.title, t.duration_s, t.artist_url, a.name AS artist, a.slug
        FROM transmission_results r
        JOIN tracks t ON t.id = r.track_id
        JOIN artists a ON a.id = t.artist_id
@@ -425,6 +770,10 @@ export async function handleAudio(request, env, trackId) {
     if (station.state === "live" || station.state === "results") {
       allowed = parseSetlist(station.transmission).some((s) => s.track_id === trackId);
     }
+  }
+  if (!allowed) {
+    // The owner can audition any track from /studio.
+    allowed = await requireOwner(request, env);
   }
   if (!allowed) {
     return new Response("This track is not currently airing.", { status: 403 });

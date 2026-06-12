@@ -87,7 +87,26 @@ export function parseSetlist(t) {
 }
 
 /**
- * Certify post-broadcast results per the survival rule.
+ * Wilson score lower bound (95% CI by default) on the crush fraction.
+ * The survival ranking metric: a track loved by a big room outranks a
+ * lucky spike in a small one, and bringing 30 real friends tightens the
+ * bound rather than gaming it. Zero surveillance, zero friction.
+ */
+export function wilsonLowerBound(positives, n, z = 1.96) {
+  if (n <= 0) return 0;
+  const phat = positives / n;
+  const z2 = z * z;
+  return (
+    (phat + z2 / (2 * n) - z * Math.sqrt((phat * (1 - phat) + z2 / (4 * n)) / n)) /
+    (1 + z2 / n)
+  );
+}
+
+/**
+ * Certify post-broadcast results per the survival rule. The signal floor
+ * gates eligibility; among eligible tracks, survival rank is the Wilson
+ * lower bound of the crush fraction (not the raw rate — raw rate lets a
+ * 6/10 fluke beat a 40/100 favorite).
  * @param {Array<{track_id: string, position: number, played: boolean,
  *   crushes: number, unique_listeners: number}>} stats one entry per setlist track
  * @param {object} floor SIGNAL_FLOOR-shaped config
@@ -101,14 +120,15 @@ export function certifyResults(stats, floor = SIGNAL_FLOOR) {
       s.unique_listeners >= floor.minListeners &&
       s.crushes >= floor.minCrushes;
     const crush_rate = s.unique_listeners > 0 ? s.crushes / s.unique_listeners : 0;
-    return { ...s, eligible, crush_rate };
+    const score = wilsonLowerBound(s.crushes, s.unique_listeners);
+    return { ...s, eligible, crush_rate, score };
   });
 
   const eligible = judged
     .filter((s) => s.eligible)
     .sort(
       (a, b) =>
-        b.crush_rate - a.crush_rate ||
+        b.score - a.score ||
         b.crushes - a.crushes ||
         a.position - b.position
     );
