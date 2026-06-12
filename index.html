@@ -53,13 +53,37 @@
   }
   a{color:inherit}
 
-  /* Top bar */
+  html{scroll-behavior:smooth}
+
+  /* Top bar — sticky so the jump nav is always reachable on the long scroll */
   .topbar{
-    position:relative;z-index:5;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:22px var(--gutter);
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    padding:16px var(--gutter);
     border-bottom:1px solid var(--rule);
+    background:rgba(10,10,10,0.88);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
   }
+  /* Jump nav — anchor links that smooth-scroll to each section */
+  .jump{
+    display:flex;align-items:center;gap:2px;flex:1;justify-content:center;flex-wrap:wrap;
+  }
+  .jump a{
+    padding:7px 12px;
+    color:var(--ink-dim);text-decoration:none;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;letter-spacing:0.14em;text-transform:uppercase;
+    border:1px solid transparent;
+    transition:color .15s,border-color .15s,background .15s;
+    white-space:nowrap;
+  }
+  .jump a:hover{color:var(--ink);border-color:var(--rule)}
+  .jump a[hidden]{display:none}
+  .jump a.is-live{color:var(--red)}
+  .jump a.is-live::before{content:"● "}
+  /* Anchored sections clear the sticky bar when jumped to */
+  #tx-root,#hall-root,#code{scroll-margin-top:84px}
   .brand{
     font-family:'Archivo Black',sans-serif;
     font-size:18px;letter-spacing:0.08em;text-transform:uppercase;
@@ -360,8 +384,13 @@
 
   /* Mobile tweaks */
   @media (max-width:560px){
-    .topbar{padding:18px var(--gutter)}
+    .topbar{padding:12px var(--gutter);flex-wrap:wrap;gap:8px}
     .brand{font-size:15px}
+    /* Brand + Repo on row 1; jump nav on its own full-width row below.
+       flex-basis:100% + flex-grow:0 overrides the base flex:1 deterministically. */
+    .jump{order:3;flex:0 0 100%;justify-content:flex-start;gap:4px}
+    .jump a{padding:7px 9px;font-size:10px;letter-spacing:0.1em}
+    #tx-root,#hall-root,#code{scroll-margin-top:108px}
     .wordmark{font-size:clamp(56px,20vw,128px)}
     .stat .v{font-size:30px}
     .foot{font-size:10px;flex-direction:column;align-items:flex-start;gap:14px}
@@ -373,6 +402,11 @@
 
 <header class="topbar">
   <a class="brand" href="/"><span class="mark"></span>Crush Radio</a>
+  <nav class="jump" aria-label="Jump to section">
+    <a href="#tx-root" data-nav="tx">Listen</a>
+    <a href="#hall-root" data-nav="hall" hidden>Hall</a>
+    <a href="#code" data-nav="code">Code</a>
+  </nav>
   <a class="nav-repo" href="https://github.com/jjc6676/crushradio" rel="noopener" aria-label="View the repo on GitHub">
     <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
     <span>Repo</span>
@@ -396,7 +430,7 @@
 
 <section id="hall-root" class="hall section"></section>
 
-<section class="code-intro">
+<section id="code" class="code-intro">
   <div class="eyebrow">The Code // Built in the open</div>
   <p class="lead">
     Crush Radio is <b>built in public on GitHub</b>. An open-source community radio station.
