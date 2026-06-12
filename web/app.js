@@ -108,6 +108,7 @@
 
   function render(state) {
     root.replaceChildren();
+    updateNav(state.state);
     const fn = {
       dark: renderDark,
       submissions_open: renderOpen,
@@ -117,6 +118,23 @@
       results: renderResults,
     }[state.state] || renderDark;
     fn(state);
+  }
+
+  // The jump-nav "Listen" link adapts to what's actually happening, so on a
+  // long mobile scroll the top link always names the current action.
+  function updateNav(stateName) {
+    const txLink = document.querySelector('.jump a[data-nav="tx"]');
+    if (!txLink) return;
+    const label = {
+      submissions_open: "Submit",
+      submissions_closed: "Listen",
+      setlist_published: "Setlist",
+      live: "Tune in",
+      results: "Results",
+      dark: "Listen",
+    }[stateName] || "Listen";
+    txLink.textContent = label;
+    txLink.classList.toggle("is-live", stateName === "live");
   }
 
   // --- states ---
@@ -602,6 +620,8 @@
       const res = await fetch("/api/hall");
       hall = (await res.json()).hall || [];
     } catch {}
+    const hallLink = document.querySelector('.jump a[data-nav="hall"]');
+    if (hallLink) hallLink.hidden = !hall.length; // nav link only when there are survivors
     if (!hall.length) { hallRoot.replaceChildren(); return; }
 
     const audio = el("audio", { preload: "none" });
@@ -636,6 +656,7 @@
 
   function renderDemo(state) {
     const t = now();
+    updateNav(state);
     const banner = el("div", { class: "demo-banner" },
       "DEMO MODE — simulated ", el("b", {}, state.replace(/_/g, " ")),
       " · real data untouched · ",
@@ -682,6 +703,11 @@
     root.prepend(banner);
   }
 
-  window.addEventListener("hashchange", boot);
+  // Re-render only for demo toggles / exit — NOT for the jump-nav section
+  // anchors (#tx-root, #hall-root, #code), which the browser scrolls to.
+  window.addEventListener("hashchange", () => {
+    const h = location.hash;
+    if (h === "" || h === "#" || /demo=/.test(h)) boot();
+  });
   boot();
 })();
