@@ -291,6 +291,10 @@
       el("label", { class: "attest" },
         el("input", { type: "checkbox", name: "attestation", required: "" }),
         el("span", {}, "I own this recording or have the rights to submit it.")),
+      el("p", { class: "file-note", style: "margin:-8px 0 14px" },
+        "Originals only. By submitting you agree to the ",
+        el("a", { href: "/copyright", target: "_blank", rel: "noopener", style: "color:var(--ink-dim)" }, "rights terms"),
+        "."),
       el("button", { class: "btn-crush", type: "submit" }, "Submit track"),
       status);
     return form;

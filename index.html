@@ -83,7 +83,7 @@
   .jump a.is-live{color:var(--red)}
   .jump a.is-live::before{content:"● "}
   /* Anchored sections clear the sticky bar when jumped to */
-  #tx-root,#hall-root,#code{scroll-margin-top:84px}
+  #tx-root,#how,#hall-root,#code{scroll-margin-top:84px}
   .brand{
     font-family:'Archivo Black',sans-serif;
     font-size:18px;letter-spacing:0.08em;text-transform:uppercase;
@@ -382,6 +382,27 @@
   .demo-banner a.demo-on{color:var(--red);font-weight:700}
   .demo-banner b{color:var(--ink)}
 
+  /* How it works — evergreen explainer for newcomers, any state */
+  .how{position:relative;z-index:4;padding:0 var(--gutter) clamp(40px,6vw,64px)}
+  .how .lead{max-width:68ch;font-size:clamp(15px,1.4vw,18px);line-height:1.6;margin-bottom:clamp(20px,3vw,28px)}
+  .how .lead b{color:var(--red);font-weight:700}
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin-bottom:clamp(20px,3vw,28px)}
+  @media (max-width:760px){.rules{grid-template-columns:1fr}}
+  .rule{background:#0f0f0f;padding:20px 22px}
+  .rule .n{font-family:'Anton',sans-serif;font-size:30px;color:var(--red);line-height:1}
+  .rule .t{font-family:'Archivo Black',sans-serif;font-size:13px;letter-spacing:.06em;text-transform:uppercase;margin:10px 0 8px}
+  .rule .d{color:var(--ink-dim);font-size:13px;line-height:1.55}
+  .cycle{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule)}
+  @media (max-width:760px){.cycle{grid-template-columns:1fr 1fr}}
+  @media (max-width:420px){.cycle{grid-template-columns:1fr}}
+  .phase{background:#0f0f0f;padding:14px 16px}
+  .phase .w{color:var(--red);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+  .phase .s{font-family:'Archivo Black',sans-serif;font-size:12px;letter-spacing:.04em;text-transform:uppercase;margin:8px 0 6px}
+  .phase .x{color:var(--ink-dim);font-size:12px;line-height:1.45}
+  .how .survive{margin-top:clamp(20px,3vw,28px);max-width:68ch;font-size:14px;line-height:1.6;color:var(--ink)}
+  .how .survive b{color:var(--red)}
+  .how .more{margin-top:16px;font-size:12px;letter-spacing:.06em}
+
   /* Mobile tweaks */
   @media (max-width:560px){
     .topbar{padding:12px var(--gutter);flex-wrap:wrap;gap:8px}
@@ -390,7 +411,7 @@
        flex-basis:100% + flex-grow:0 overrides the base flex:1 deterministically. */
     .jump{order:3;flex:0 0 100%;justify-content:flex-start;gap:4px}
     .jump a{padding:7px 9px;font-size:10px;letter-spacing:0.1em}
-    #tx-root,#hall-root,#code{scroll-margin-top:108px}
+    #tx-root,#how,#hall-root,#code{scroll-margin-top:108px}
     .wordmark{font-size:clamp(56px,20vw,128px)}
     .stat .v{font-size:30px}
     .foot{font-size:10px;flex-direction:column;align-items:flex-start;gap:14px}
@@ -404,6 +425,7 @@
   <a class="brand" href="/"><span class="mark"></span>Crush Radio</a>
   <nav class="jump" aria-label="Jump to section">
     <a href="#tx-root" data-nav="tx">Listen</a>
+    <a href="#how" data-nav="how">How</a>
     <a href="#hall-root" data-nav="hall" hidden>Hall</a>
     <a href="#code" data-nav="code">Code</a>
   </nav>
@@ -427,6 +449,45 @@
 </main>
 
 <section id="tx-root" class="tx" aria-live="polite"></section>
+
+<section id="how" class="how">
+  <div class="eyebrow">How it works // The weekly ritual</div>
+  <p class="lead">
+    Crush Radio isn't on all the time. It's a <b>weekly live broadcast</b> — one shared hour where
+    everyone hears the same originals at the same moment and keeps the ones worth keeping.
+  </p>
+  <div class="rules">
+    <div class="rule">
+      <div class="n">01</div>
+      <div class="t">One shared broadcast</div>
+      <div class="d">Every listener hears the same track at the same moment. No personalized streams, no skip button. Tuning in means tuning in <em>with</em> people.</div>
+    </div>
+    <div class="rule">
+      <div class="n">02</div>
+      <div class="t">Positive-only voting</div>
+      <div class="d">You tap CRUSHED IT on what you love; silence retires the rest. Tracks earn their place or they're gone. There is no downvote.</div>
+    </div>
+    <div class="rule">
+      <div class="n">03</div>
+      <div class="t">Built in public</div>
+      <div class="d">No labels, no algorithm, no closed doors. Every change is a pull request. Every decision is in an issue or a commit.</div>
+    </div>
+  </div>
+  <div class="cycle">
+    <div class="phase"><div class="w">Mon → Thu</div><div class="s">Submit</div><div class="x">Artists upload originals. Free, one track each.</div></div>
+    <div class="phase"><div class="w">Thu → Fri</div><div class="s">Curate</div><div class="x">20–25 tracks hand-picked. Setlist locks Friday noon.</div></div>
+    <div class="phase"><div class="w">Fri 12pm</div><div class="s">Published</div><div class="x">The lineup goes public. Countdown begins.</div></div>
+    <div class="phase"><div class="w">Fri 8pm</div><div class="s">Live</div><div class="x">Everyone tunes in. CRUSHED IT on the player.</div></div>
+    <div class="phase"><div class="w">Fri 10pm</div><div class="s">Results</div><div class="x">Tallies posted. On-demand replay opens.</div></div>
+    <div class="phase"><div class="w">Sat → Mon</div><div class="s">Dark</div><div class="x">Station sleeps. Hall of Crush stays lit.</div></div>
+  </div>
+  <p class="survive">
+    <b>The top third survive</b> into the Hall of Crush. The rest retire. A track too few people heard
+    isn't retired — it's <b>unjudged</b>, and can come back. Survival is ranked by how hard the room
+    that actually showed up crushed it, so a packed room beats a lucky empty one.
+  </p>
+  <p class="more"><a class="tx-link" href="/about">Read the full story →</a></p>
+</section>
 
 <section id="hall-root" class="hall section"></section>
 
@@ -452,6 +513,9 @@
 <footer class="foot">
   <div>© Crush Radio · Community-built · MIT licensed</div>
   <div class="social">
+    <a href="/about">About</a>
+    <a href="#how">How it works</a>
+    <a href="/copyright">Copyright</a>
     <a href="https://github.com/jjc6676/crushradio" rel="noopener">GitHub</a>
     <a href="mailto:hello@crushradio.com">Contact</a>
   </div>

@@ -33,6 +33,165 @@ function fmtDuration(s) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// --- Shared chrome for static prose pages (/about, /copyright) ---
+
+function pageShell(title, description, innerHtml) {
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)} — Crush Radio</title>
+<meta name="description" content="${escapeHtml(description)}">
+<meta property="og:title" content="${escapeHtml(title)} — Crush Radio">
+<meta property="og:description" content="${escapeHtml(description)}">
+<meta property="og:type" content="website">
+<link rel="canonical" href="https://crushradio.com/${escapeHtml(title.toLowerCase())}">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0a0a0a;--ink:#f3ece0;--dim:#8a8278;--red:#ef2b2b;--rule:#222}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;line-height:1.65;padding:clamp(24px,5vw,64px)}
+  main{max-width:760px;margin:0 auto}
+  a{color:var(--red)}
+  .top{display:flex;align-items:center;gap:10px;margin-bottom:36px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+  .top a{color:var(--ink);text-decoration:none}
+  .top .mark{width:11px;height:11px;background:var(--red);border-radius:50%;display:inline-block}
+  h1{font-family:'Anton',sans-serif;font-size:clamp(40px,8vw,80px);text-transform:uppercase;color:var(--red);line-height:.92;margin-bottom:8px}
+  .lede{font-size:clamp(15px,1.6vw,18px);color:var(--ink);margin:14px 0 8px;max-width:60ch}
+  h2{font-family:'Anton',sans-serif;font-size:26px;text-transform:uppercase;margin:40px 0 12px;letter-spacing:.01em}
+  h3{font-size:13px;text-transform:uppercase;letter-spacing:.16em;color:var(--dim);margin:24px 0 8px}
+  p{margin:0 0 14px;max-width:66ch}
+  b,strong{color:var(--red)}
+  ul,ol{margin:0 0 16px;padding-left:22px}
+  li{margin:0 0 8px;max-width:64ch}
+  blockquote{margin:16px 0;padding:12px 18px;border-left:2px solid var(--red);color:var(--ink)}
+  .cycle{width:100%;border-collapse:collapse;border:1px solid var(--rule);margin:16px 0;font-size:13px}
+  .cycle th,.cycle td{padding:10px 12px;border-bottom:1px solid var(--rule);text-align:left;vertical-align:top}
+  .cycle th{color:var(--dim);font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+  .cycle td:first-child{white-space:nowrap;color:var(--red)}
+  .attest{border:1px dashed var(--red);padding:14px 18px;margin:16px 0;color:var(--ink);user-select:all}
+  footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--rule);color:var(--dim);font-size:11px;letter-spacing:.12em;text-transform:uppercase;display:flex;gap:18px;flex-wrap:wrap}
+  footer a{color:var(--ink);text-decoration:none}
+</style>
+</head>
+<body>
+<main>
+<div class="top"><a href="/"><span class="mark"></span> Crush Radio</a> · ${escapeHtml(title)}</div>
+${innerHtml}
+<footer>
+  <a href="/">← Station</a>
+  <a href="/about">About</a>
+  <a href="/copyright">Copyright</a>
+  <a href="https://github.com/jjc6676/crushradio" rel="noopener">GitHub</a>
+  <a href="mailto:hello@crushradio.com">Contact</a>
+</footer>
+</main>
+</body>
+</html>`;
+  return new Response(html, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "public, max-age=3600",
+      "x-content-type-options": "nosniff",
+    },
+  });
+}
+
+export function renderAboutPage() {
+  return pageShell(
+    "About",
+    "Crush Radio is open-source community radio run as weekly live transmissions. Artists upload originals, everyone hears one shared broadcast, and the tracks listeners love survive.",
+    `
+    <h1>About</h1>
+    <p class="lede">Crush Radio is open-source community radio for songs algorithms would bury — run as <b>weekly live transmissions</b>, not 24/7 background noise.</p>
+
+    <p>Each week a curated setlist of original tracks airs as <b>one shared broadcast</b>. Everyone hears the same song at the same moment. Listeners tap CRUSHED IT on what's worth keeping. The top third survive into the <a href="/#hall-root">Hall of Crush</a>. The rest disappear. Between transmissions, the station goes dark.</p>
+
+    <blockquote>Built by the people who'd actually listen. Voted on by the people actually listening.</blockquote>
+
+    <h2>Three rules</h2>
+    <ol>
+      <li><b>One shared broadcast.</b> Every listener hears the same track at the same moment. No personalized streams, no skip button. Tuning in means tuning in <em>with</em> people.</li>
+      <li><b>Positive-only voting.</b> You tap CRUSHED IT on what you love; silence retires the rest. Tracks earn their place or they're gone. There is no downvote.</li>
+      <li><b>Built in public.</b> No labels, no algorithm, no closed doors. Every change is a pull request; every decision is in an issue or a commit message.</li>
+    </ol>
+
+    <h2>The weekly cycle</h2>
+    <p>All times Central. Submissions are free, originals only, one track per artist per window.</p>
+    <table class="cycle">
+      <tr><th>When</th><th>What's happening</th></tr>
+      <tr><td>Mon 12pm → Thu 8pm</td><td><b>Submissions open.</b> Artists upload original tracks. A live counter shows the pool filling.</td></tr>
+      <tr><td>Thu 8pm → Fri 12pm</td><td><b>Curation.</b> 20–25 tracks are hand-picked. The setlist locks Friday noon.</td></tr>
+      <tr><td>Fri 12pm → Fri 8pm</td><td><b>Setlist published.</b> Selected artists get a shareable promo link. The site shows the lineup and counts down.</td></tr>
+      <tr><td>Fri 8pm → ~10pm</td><td><b>Live transmission.</b> Everyone tunes into the same broadcast. CRUSHED IT on the player. The Hall counter ticks up live.</td></tr>
+      <tr><td>Fri 10pm → Sat 12pm</td><td><b>Results &amp; replay.</b> Final tallies posted; on-demand replay with voting closed.</td></tr>
+      <tr><td>Sat 12pm → Mon 12pm</td><td><b>Dark.</b> A countdown to the next window. The Hall of Crush is the only thing still lit.</td></tr>
+    </table>
+
+    <h2>How a track is judged</h2>
+    <p>The top third survive. A track that too few people heard isn't retired — it's <b>unjudged</b>, and the artist can resubmit. Survival is ranked by crush rate among the people who were actually listening, so a track loved by a full room beats a lucky spike in an empty one, and bringing your real fans only helps.</p>
+    <blockquote>Early transmissions are hand-curated to establish signal. As the community grows, the protocol opens.<br>If nobody shows up live, the track has not truly been judged.</blockquote>
+
+    <h2>What this is not</h2>
+    <ul>
+      <li><b>Not 24/7.</b> Going dark between transmissions is the point — the broadcast is an event, not a faucet.</li>
+      <li><b>Not for covers or rips.</b> Originals only. You must own what you submit.</li>
+      <li><b>No accounts.</b> Voting is anonymous; artists are identified by a private link, not a login.</li>
+      <li><b>No pay-to-play.</b> Money never touches the submission queue. Donations cover the (small) hosting bill, nothing more.</li>
+    </ul>
+
+    <h2>Get involved</h2>
+    <p>Artists: submit when the window is open. Listeners: <a href="/">tune in Friday</a> and add the next broadcast to your calendar. Builders: it's <a href="https://github.com/jjc6676/crushradio" rel="noopener">all on GitHub</a> — open a PR or an issue with anything. Rights questions and takedowns: see <a href="/copyright">copyright</a>.</p>
+    `
+  );
+}
+
+export function renderCopyrightPage() {
+  return pageShell(
+    "Copyright",
+    "Crush Radio is originals-only. Submitting requires you own the recording. How rights, AI disclosure, takedowns, and repeat infringement are handled.",
+    `
+    <h1>Copyright</h1>
+    <p class="lede">Crush Radio airs <b>original music only</b>. Submitting a track requires that you own it. This page covers the rights you grant, AI disclosure, and how to report or remove infringing material.</p>
+
+    <h2>The attestation</h2>
+    <p>Every upload requires you to affirm, in these exact words:</p>
+    <div class="attest">"I own this recording or have the rights to submit it."</div>
+    <p>No attestation, no upload. By submitting you confirm you hold the rights to both the composition and the master, that the track contains no uncleared samples, and that you grant Crush Radio a non-exclusive, royalty-free license to broadcast it during a transmission and to keep it streaming in the Hall of Crush if it survives.</p>
+
+    <h2>AI disclosure</h2>
+    <p>At upload you declare whether the track is human-made, human-made with AI assistance, or fully AI-generated. Misrepresenting this is grounds for removal. Disclosure is about honesty with listeners, not exclusion — but undisclosed AI passed off as human work will be pulled.</p>
+
+    <h2>Reporting infringement (takedown)</h2>
+    <p>If you believe a track on Crush Radio infringes your copyright, email <a href="mailto:hello@crushradio.com">hello@crushradio.com</a> with:</p>
+    <ul>
+      <li>The track and transmission (a link to the setlist or Hall entry).</li>
+      <li>Identification of the work you say it infringes.</li>
+      <li>Your contact information.</li>
+      <li>A statement, under penalty of perjury, that you have a good-faith belief the use is unauthorized and that you are the rights holder or authorized to act for them.</li>
+      <li>Your physical or electronic signature.</li>
+    </ul>
+    <p>Valid notices are acted on promptly — a flagged or infringing track is removed from any pending setlist and from the Hall. Reports can be filed at any time, in any state of the cycle; they are never gated by the broadcast schedule.</p>
+
+    <h3>Designated agent</h3>
+    <p>Send formal DMCA notices to the designated agent at <a href="mailto:hello@crushradio.com">hello@crushradio.com</a>. (A registered DMCA agent on file with the U.S. Copyright Office will be listed here once registration is complete.)</p>
+
+    <h2>Counter-notice</h2>
+    <p>If your track was removed and you believe that was a mistake or misidentification, reply to the removal notice with a counter-notice: identify the track, state under penalty of perjury that you have a good-faith belief it was removed in error, and consent to jurisdiction. Validly counter-noticed material may be restored.</p>
+
+    <h2>Repeat infringers</h2>
+    <p>Accounts are by email. An artist who submits infringing material twice is barred from future submissions. A single confirmed commercial rip is enough to bar immediately. This policy is enforced, not decorative.</p>
+
+    <h2>The station's own license</h2>
+    <p>Crush Radio's <b>code</b> is MIT-licensed — fork it, run your own station. Artists retain all rights to their <b>music</b>; the only license you grant is the non-exclusive broadcast/archive license above, and you can request removal of your own track at any time.</p>
+    `
+  );
+}
+
 // --- GET /transmissions/:n.ics — add the broadcast to your calendar ---
 
 function icsEscape(s) {

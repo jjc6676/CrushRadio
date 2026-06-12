@@ -5,10 +5,49 @@ artists upload originals during a submission window, the owner curates a setlist
 everyone hears one synced Friday-night broadcast, listeners tap CRUSHED IT, and the
 top third survive into the Hall of Crush. Between transmissions the station is dark.
 
-Specs live in `docs/specs/` — **the latest spec wins** (currently
-`2026-05-17-transmissions-design.md`, which supersedes the 24/7 jukebox design).
-Owner operations (scheduling, curation, certification, emergencies) are in
-`docs/runbook-t001.md`. Read the spec before changing the state machine.
+Specs live in `docs/specs/` — **the latest spec wins**. The state machine and
+T001 parameters are in `2026-05-17-transmissions-design.md` (supersedes the 24/7
+jukebox design); the automated pipeline + the "why this shape" constitution are in
+`2026-06-11-open-signal.md`. Owner operations are in `docs/runbook-t001.md`. Read
+the relevant spec before changing the state machine or the pipeline.
+
+## The flow (end to end)
+
+One weekly ritual, three actors. The spine is the six-state cycle, derived from the
+active transmission's UTC timestamps (CT shown below is presentation only):
+
+```
+Mon 12pm ─ submissions_open ─ Thu 8pm ─ submissions_closed ─ Fri 12pm
+   ─ setlist_published ─ Fri 8pm ─ live ─ Fri 10pm ─ results ─ Sat 12pm ─ dark ─ (Mon)
+```
+
+**Listener** (anonymous; no account). Lands on `/` → the hero states the premise,
+the "How it works" section makes the ritual legible, the transmission panel shows
+the current state, the Hall of Crush shows past survivors. Dark → countdown +
+add-to-calendar (`.ics`). Submissions open → watches the pool counter. Setlist
+published → reads the setlist, counts down. Live (Fri 8pm) → Tune In → wall-clock
+synced player → taps CRUSHED IT per track. Results (Fri 10pm) → tallies +
+on-demand replay. Hall of Crush is permanent and replayable.
+
+**Artist** (identity = email + a private token; no account). Submissions open →
+uploads a file or a URL + attestation + AI disclosure → gets a private status link
+(`/track/:id/:token`). Curation → status reads "held" (selection stays secret).
+Publish (Fri 12pm) → email: selected (slot + promo line + `.ics`) or held (rolls
+over once, then expires with a resubmit invite); status page reveals. Selected →
+shares the `#artist-slug` deep link → airs. Results → email: crushed (→ Hall) /
+retired / unjudged (resubmit).
+
+**Owner** (single; auth = KV `config:owner_token`). `npm run tx:schedule` applies
+the week. Curates Thu→Fri in `/studio` (audition, select, order). Locks — or the
+cron auto-locks at Fri noon — which composes the notifications (held until
+publish). Broadcast night: hands off; the cron kicks the Rotator. Fri 10pm: the
+cron certifies (Wilson survival), writes results, queues results emails. Emergency
+only: remove a track (rights/abuse/tech) in `/studio`, which re-kicks the Rotator.
+Then schedule the next transmission.
+
+**Public surfaces:** `/` (home), `/transmissions/:n` (+`.ics`), `/track/:id/:token`
+(private), `/about`, `/copyright`, `/studio?key=` (owner). The home page is the hub;
+everything else is reachable from it or from an email.
 
 ## Commands
 
@@ -54,15 +93,22 @@ One Worker, one Durable Object, four bindings (D1 `DB`, KV `KV`, R2 `AUDIO`, DO 
   (idempotent), certify results once after broadcast end, flush the outbox.
 - `workers/main/pages.js` — server-rendered `/transmissions/:n` (pending →
   setlist with `#artist-slug` anchors → results table), the private
-  `/track/:id/:token` artist status page, and the `.ics` calendar feed.
+  `/track/:id/:token` artist status page, the `.ics` calendar feed, and the
+  static `/about` + `/copyright` pages (`pageShell()` is the shared chrome).
+- `web/app.js` — the client app: renders the transmission section from
+  `GET /api/state` and drives the state-aware jump-nav label. The static
+  "How it works" section + footer live in `index.html`.
 - `rotator/index.js` — the Rotator DO: plays the setlist in order during the
   broadcast window, self-syncs from the wall clock after restarts, records
   listener-seconds (`track_listens`) for the signal floor, hibernates after.
   It is awake roughly two hours per week; keep it that way.
-- `web/app.js` — the client app; renders the home page's transmission section from
-  `GET /api/state`. `index.html` is the static shell.
 - `infra/schema.sql` is canonical for fresh databases; existing databases take
-  additive files in `infra/migrations/`. `infra/seed.sql` is local-dev only.
+  additive files in `infra/migrations/` (0002 transmissions, 0003 Open Signal,
+  0004 review hardening). `infra/seed.sql` is local-dev only.
+
+Owner config lives in KV (`config:*`), never in bindings: `config:owner_token`
+(studio auth), `config:resend_key` (email delivery; mailto fallback when unset),
+`config:mail_from`, `config:max_submissions_per_window`.
 
 ## Invariants — the rules that keep the system honest
 
